@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
-const { query } = require('../config/database');
+// Database query helper removed - supabase client and models are used instead
+const { RoomAllotmentModel, AllotmentApplicationModel, HostelModel, RoomModel } = require('../models');
 
 // In-memory storage for allotment data (replace with database in production)
 let allotmentApplications = [];
@@ -13,47 +14,32 @@ router.get('/status', authenticateToken, async (req, res) => {
         const userId = req.user.userId || req.user.id;
         console.log('🔍 Checking allotment status for user:', userId);
         
-        // Check if student has an active room allocation
-        const allocationQuery = await query(`
-            SELECT ra.*, r.room_no, h.hostel_name, h.hostel_type
-            FROM room_allotments ra
-            JOIN rooms r ON ra.room_id = r.room_id
-            JOIN hostels h ON r.hostel_id = h.hostel_id
-            WHERE ra.student_id = $1 AND ra.status = $2
-        `, [userId, 'Allocated']);
+    // Check if student has an active room allocation
+    const allocation = await RoomAllotmentModel.findActiveByStudent(userId);
         
-        if (allocationQuery.rows.length > 0) {
-            const allocation = allocationQuery.rows[0];
+        if (allocation) {
             return res.json({
                 isAllocated: true,
-                roomNumber: allocation.room_no,
-                hostelName: allocation.hostel_name,
-                hostelType: allocation.hostel_type,
-                allocationDate: allocation.allotment_date,
+                roomNumber: allocation.room_no || allocation.roomNo || null,
+                hostelName: allocation.hostel_name || allocation.hostelName || null,
+                hostelType: allocation.hostel_type || allocation.hostelType || null,
+                allocationDate: allocation.allotment_date || allocation.allotmentDate || null,
                 status: allocation.status
             });
         }
         
-        // Check if student has a pending application
-        const applicationQuery = await query(`
-            SELECT aa.*, h.hostel_name
-            FROM allotment_applications aa
-            LEFT JOIN hostels h ON aa.preferred_hostel_id = h.hostel_id
-            WHERE aa.user_id = $1 AND aa.status = $2
-            ORDER BY aa.created_at DESC
-            LIMIT 1
-        `, [userId, 'pending']);
+    // Check if student has a pending application
+    const application = await AllotmentApplicationModel.findLatestByUser(userId);
         
-        if (applicationQuery.rows.length > 0) {
-            const application = applicationQuery.rows[0];
+        if (application) {
             return res.json({
                 isAllocated: false,
                 applicationStatus: application.status,
-                applicationDate: application.created_at,
+                applicationDate: application.created_at || application.createdAt,
                 expectedProcessingTime: '5-7 business days',
-                applicationId: application.application_id,
-                preferredHostel: application.hostel_name || 'Not specified',
-                roomType: application.room_type_preference
+                applicationId: application.application_id || application.applicationId,
+                preferredHostel: application.hostel_name || application.preferredHostel || 'Not specified',
+                roomType: application.room_type_preference || application.roomType
             });
         }
         
@@ -73,25 +59,15 @@ router.get('/status', authenticateToken, async (req, res) => {
 router.get('/hostels', authenticateToken, async (req, res) => {
     try {
         console.log('🏨 Fetching available hostels...');
-        
-        const hostelsQuery = await query(`
-            SELECT hostel_id, hostel_name, hostel_type, total_rooms, location,
-                   (SELECT COUNT(*) FROM rooms WHERE hostel_id = h.hostel_id AND status = 'Vacant') as available_rooms
-            FROM hostels h
-            ORDER BY hostel_name
-        `);
-        
-        const hostels = hostelsQuery.rows.map(hostel => ({
-            id: hostel.hostel_id,
-            name: hostel.hostel_name,
-            type: hostel.hostel_type,
-            totalRooms: hostel.total_rooms,
-            availableRooms: hostel.available_rooms,
-            location: hostel.location
-        }));
-        
-        console.log(`✅ Found ${hostels.length} hostels`);
-        res.json(hostels);
+    const hostels = await HostelModel.findAll();
+        const result = [];
+        for (const h of hostels) {
+            const rooms = await RoomModel.findByHostel(h.hostel_id);
+            const available_rooms = rooms.filter(r => r.status === 'Vacant').length;
+            result.push({ id: h.hostel_id, name: h.hostel_name, type: h.hostel_type, totalRooms: h.total_rooms, availableRooms: available_rooms, location: h.location });
+        }
+        console.log(`✅ Found ${result.length} hostels`);
+        res.json(result);
         
     } catch (error) {
         console.error('❌ Error fetching hostels:', error);
@@ -136,25 +112,19 @@ router.post('/register', authenticateToken, async (req, res) => {
             });
         }
         
-        // Check if student is already allocated a room
-        const existingAllocation = await query(
-            'SELECT * FROM room_allotments WHERE student_id = $1 AND status = $2',
-            [userId, 'Allocated']
-        );
+    // Check if student is already allocated a room
+    const existingAllocation = await RoomAllotmentModel.findActiveByStudent(userId);
         
-        if (existingAllocation.rows.length > 0) {
+        if (existingAllocation) {
             return res.status(400).json({ 
                 message: 'You are already allocated to a hostel room' 
             });
         }
         
-        // Check if student already has a pending application
-        const existingApplication = await query(
-            'SELECT * FROM allotment_applications WHERE user_id = $1 AND status = $2',
-            [userId, 'pending']
-        );
+    // Check if student already has a pending application
+    const existingApplication = await AllotmentApplicationModel.findByUserAndStatus(userId, 'pending');
         
-        if (existingApplication.rows.length > 0) {
+        if (existingApplication) {
             return res.status(400).json({ 
                 message: 'You already have a pending allotment application' 
             });
@@ -167,13 +137,8 @@ router.post('/register', authenticateToken, async (req, res) => {
             if (!isNaN(hostelPreference)) {
                 preferredHostelId = parseInt(hostelPreference);
             } else {
-                const hostelResult = await query(
-                    'SELECT hostel_id FROM hostels WHERE LOWER(hostel_name) LIKE LOWER($1) OR LOWER(hostel_type) LIKE LOWER($1) LIMIT 1',
-                    [`%${hostelPreference}%`]
-                );
-                if (hostelResult.rows.length > 0) {
-                    preferredHostelId = hostelResult.rows[0].hostel_id;
-                }
+                const found = await HostelModel.findAll({ hostel_name: hostelPreference });
+                if (found && found.length > 0) preferredHostelId = found[0].hostel_id;
             }
         }
         
@@ -184,47 +149,39 @@ router.post('/register', authenticateToken, async (req, res) => {
         // Generate unique application ID
         const applicationId = `APP${Date.now()}`;
         
-        // Insert application into database
-        const insertResult = await query(`
-            INSERT INTO allotment_applications (
-                application_id, user_id, preferred_hostel_id, room_type_preference,
-                course, academic_year, performance_type, performance_value,
-                distance_from_home, distance_unit, guardian_name, guardian_phone,
-                home_address, medical_info, special_requests, status
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
-            ) RETURNING id, created_at
-        `, [
-            applicationId,
-            userId,
-            preferredHostelId,
-            roomType,
+    // Insert application into database
+    const app = await AllotmentApplicationModel.create({
+            application_id: applicationId,
+            user_id: userId,
+            preferred_hostel_id: preferredHostelId,
+            room_type_preference: roomType,
             course,
-            yearOfStudy,
-            performanceType,
-            performanceValue,
-            distanceFromHome,
-            distanceUnit || 'km',
-            emergencyContactName,
-            emergencyContactPhone,
-            homeAddress,
-            medicalInfo || null,
-            specialRequests || null,
-            'pending'
-        ]);
-        
-        console.log('✅ Application inserted successfully:', insertResult.rows[0]);
-        
+            academic_year: yearOfStudy,
+            performance_type: performanceType,
+            performance_value: performanceValue,
+            distance_from_home: distanceFromHome,
+            distance_unit: distanceUnit || 'km',
+            guardian_name: emergencyContactName,
+            guardian_phone: emergencyContactPhone,
+            home_address: homeAddress,
+            medical_info: medicalInfo || null,
+            special_requests: specialRequests || null,
+            status: 'pending'
+        });
+
+        console.log('✅ Application inserted successfully:', app);
+
         res.status(201).json({
             message: 'Allotment application submitted successfully',
             applicationId: applicationId,
             status: 'pending',
-            submissionDate: insertResult.rows[0].created_at
+            submissionDate: app.created_at || app.createdAt
         });
         
     } catch (error) {
-        console.error('❌ Error submitting allotment application:', error);
-        res.status(500).json({ message: 'Internal server error' });
+        console.error('❌ Error submitting allotment application:', error && error.stack ? error.stack : error);
+        const message = process.env.NODE_ENV === 'development' ? (error.message || String(error)) : 'Internal server error';
+        res.status(500).json({ message });
     }
 });
 
@@ -371,29 +328,8 @@ router.get('/my-room', authenticateToken, async (req, res) => {
       });
     }
     
-    // Get current room allocation from database
-    const { query } = require('../config/database');
-    
-    const allotmentQuery = `
-      SELECT 
-        ra.allotment_id,
-        ra.allotment_date,
-        ra.status,
-        r.room_no,
-        r.capacity,
-        h.hostel_name,
-        h.hostel_type,
-        h.location
-      FROM room_allotments ra
-      JOIN rooms r ON ra.room_id = r.room_id
-      JOIN hostels h ON r.hostel_id = h.hostel_id
-      WHERE ra.student_id = $1 AND ra.status = 'Active'
-      ORDER BY ra.allotment_date DESC
-      LIMIT 1
-    `;
-    
-    const result = await query(allotmentQuery, [student.student_id]);
-    const allocation = result.rows[0];
+    // Get current room allocation using model
+    const allocation = await RoomAllotmentModel.findActiveByStudent(student.student_id);
     
     if (!allocation) {
       console.log('⚠️ No active room allocation found for student:', student.student_id);

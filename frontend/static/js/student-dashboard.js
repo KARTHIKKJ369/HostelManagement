@@ -1621,8 +1621,8 @@ function openAllotmentModal() {
             copyDashboardToForm();
         }, 300);
         
-        // Load hostels from database
-        loadHostelOptions();
+            // Load hostels from database (use API helper to include auth header)
+            loadHostelOptions();
     }
 }
 
@@ -1732,16 +1732,27 @@ function closeAllotmentModal() {
 async function loadHostelOptions() {
     try {
         console.log('🏨 Loading hostel options...');
-        const response = await fetch(apiUrl('/api/allotment/hostels'), {
-            method: 'GET'
-        });
-        if (response.ok) {
-            const hostels = await response.json();
-            console.log(`✅ Loaded ${hostels.length} hostel options`);
-            // You can add code here to update the UI with hostel options
-        } else {
-            console.error('❌ Failed to load hostels:', response.status);
-            dashShowAlert('Failed to load hostel options', 'error');
+        // Use the centralized API.call which adds Authorization header when token is present
+        const hostels = await API.call('/allotment/hostels', { method: 'GET' });
+        console.log(`✅ Loaded ${hostels.length} hostel options`);
+        // Populate hostel select with returned hostels
+        const select = document.getElementById('hostelPreference');
+        if (select) {
+            // Keep the default placeholder option
+            select.innerHTML = '<option value="">Select Hostel</option>';
+            if (Array.isArray(hostels) && hostels.length > 0) {
+                hostels.forEach(h => {
+                    const opt = document.createElement('option');
+                    opt.value = h.id || h.hostel_id || h.hostelId;
+                    opt.textContent = h.name || h.hostel_name || `Hostel ${opt.value}`;
+                    select.appendChild(opt);
+                });
+            } else {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No hostels available';
+                select.appendChild(opt);
+            }
         }
     } catch (error) {
         console.error('❌ Error loading hostels:', error);

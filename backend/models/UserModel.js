@@ -1,5 +1,5 @@
 const BaseModel = require('./BaseModel');
-const { query } = require('../config/database');
+const { supabase } = require('../config/supabase');
 const bcrypt = require('bcryptjs');
 
 class UserModel extends BaseModel {
@@ -26,9 +26,13 @@ class UserModel extends BaseModel {
   // Find user by username
   async findByUsername(username) {
     try {
-      const queryText = 'SELECT * FROM users WHERE username = $1';
-      const result = await query(queryText, [username]);
-      return result.rows[0] || null;
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+
+      const { data, error } = await supabase.from('users').select('*').eq('username', username).maybeSingle();
+      if (error) throw error;
+      return data || null;
     } catch (error) {
       console.error('Error finding user by username:', error.message);
       throw error;
@@ -38,9 +42,10 @@ class UserModel extends BaseModel {
   // Find user by email
   async findByEmail(email) {
     try {
-      const queryText = 'SELECT * FROM users WHERE email = $1';
-      const result = await query(queryText, [email]);
-      return result.rows[0] || null;
+      if (!supabase) throw new Error('Supabase client not initialized');
+      const { data, error } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+      if (error) throw error;
+      return data || null;
     } catch (error) {
       console.error('Error finding user by email:', error.message);
       throw error;
@@ -62,7 +67,6 @@ class UserModel extends BaseModel {
     try {
       const saltRounds = 10;
       const password_hash = await bcrypt.hash(newPassword, saltRounds);
-      
       return await this.update(userId, { password_hash }, 'user_id');
     } catch (error) {
       console.error('Error updating password:', error.message);
@@ -73,9 +77,10 @@ class UserModel extends BaseModel {
   // Update last login
   async updateLastLogin(userId) {
     try {
-      const queryText = 'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_id = $1 RETURNING *';
-      const result = await query(queryText, [userId]);
-      return result.rows[0] || null;
+      if (!supabase) throw new Error('Supabase client not initialized');
+      const { data, error } = await supabase.from('users').update({ last_login: new Date().toISOString() }).eq('user_id', userId).select().maybeSingle();
+      if (error) throw error;
+      return data || null;
     } catch (error) {
       console.error('Error updating last login:', error.message);
       throw error;
@@ -85,9 +90,10 @@ class UserModel extends BaseModel {
   // Get users by role
   async findByRole(role) {
     try {
-      const queryText = 'SELECT * FROM users WHERE role = $1 ORDER BY username';
-      const result = await query(queryText, [role]);
-      return result.rows;
+      if (!supabase) throw new Error('Supabase client not initialized');
+      const { data, error } = await supabase.from('users').select('*').eq('role', role).order('username', { ascending: true });
+      if (error) throw error;
+      return data || [];
     } catch (error) {
       console.error('Error finding users by role:', error.message);
       throw error;
@@ -97,13 +103,10 @@ class UserModel extends BaseModel {
   // Get user with additional info (excluding password)
   async findByIdSafe(userId) {
     try {
-      const queryText = `
-        SELECT user_id, username, role, email, phone, created_at, last_login
-        FROM users 
-        WHERE user_id = $1
-      `;
-      const result = await query(queryText, [userId]);
-      return result.rows[0] || null;
+      if (!supabase) throw new Error('Supabase client not initialized');
+      const { data, error } = await supabase.from('users').select('user_id, username, role, email, phone, created_at, last_login').eq('user_id', userId).maybeSingle();
+      if (error) throw error;
+      return data || null;
     } catch (error) {
       console.error('Error finding user safely:', error.message);
       throw error;
@@ -118,9 +121,10 @@ class UserModel extends BaseModel {
   // Get user with password hash (for authentication purposes)
   async findByIdWithPassword(userId) {
     try {
-      const queryText = 'SELECT * FROM users WHERE user_id = $1';
-      const result = await query(queryText, [userId]);
-      return result.rows[0] || null;
+      if (!supabase) throw new Error('Supabase client not initialized');
+      const { data, error } = await supabase.from('users').select('*').eq('user_id', userId).maybeSingle();
+      if (error) throw error;
+      return data || null;
     } catch (error) {
       console.error('Error finding user with password:', error.message);
       throw error;

@@ -1,130 +1,116 @@
 const BaseModel = require('./BaseModel');
-const { query } = require('../config/database');
+const { supabase } = require('../config/supabase');
 
 class HostelModel extends BaseModel {
   constructor() {
     super('hostels');
   }
 
-  // Find hostels by type (Boys/Girls)
   async findByType(hostelType) {
     try {
-      const queryText = 'SELECT * FROM hostels WHERE hostel_type = $1 ORDER BY hostel_name';
-      const result = await query(queryText, [hostelType]);
-      return result.rows;
+      const { data, error } = await supabase.from('hostels').select('*').eq('hostel_type', hostelType).order('hostel_name', { ascending: true });
+      if (error) throw error;
+      return data || [];
     } catch (error) {
       console.error('Error finding hostels by type:', error.message);
       throw error;
     }
   }
 
-  // Get hostel with warden details
   async findWithWarden(hostelId) {
     try {
-      const queryText = `
-        SELECT 
-          h.*,
-          u.username as warden_username,
-          u.email as warden_email,
-          u.phone as warden_phone
-        FROM hostels h
-        LEFT JOIN users u ON h.warden_id = u.user_id
-        WHERE h.hostel_id = $1
-      `;
-      const result = await query(queryText, [hostelId]);
-      return result.rows[0] || null;
+      const { data, error } = await supabase.from('hostels').select('*, users:users( username, email, phone )').eq('hostel_id', hostelId).maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      if (data.users) {
+        data.warden_username = data.users.username;
+        data.warden_email = data.users.email;
+        data.warden_phone = data.users.phone;
+        delete data.users;
+      }
+      return data;
     } catch (error) {
       console.error('Error finding hostel with warden:', error.message);
       throw error;
     }
   }
 
-  // Get hostel occupancy statistics
   async getOccupancyStats(hostelId) {
     try {
-      const queryText = `
-        SELECT 
-          h.hostel_name,
-          h.total_rooms,
-          h.hostel_type,
-          COUNT(r.room_id) as total_room_count,
-          COUNT(CASE WHEN r.status = 'Vacant' THEN 1 END) as vacant_rooms,
-          COUNT(CASE WHEN r.status = 'Occupied' THEN 1 END) as occupied_rooms,
-          COUNT(CASE WHEN r.status = 'Under Maintenance' THEN 1 END) as maintenance_rooms,
-          SUM(r.capacity) as total_capacity,
-          COUNT(ra.allotment_id) as current_students
-        FROM hostels h
-        LEFT JOIN rooms r ON h.hostel_id = r.hostel_id
-        LEFT JOIN room_allotments ra ON r.room_id = ra.room_id AND ra.status = 'Active'
-        WHERE h.hostel_id = $1
-        GROUP BY h.hostel_id, h.hostel_name, h.total_rooms, h.hostel_type
-      `;
-      const result = await query(queryText, [hostelId]);
-      return result.rows[0] || null;
+      // Basic stats by fetching rooms and allotments and computing client-side
+      const [{ data: hostel }, { data: rooms }, { data: allotments }] = await Promise.all([
+        supabase.from('hostels').select('*').eq('hostel_id', hostelId).maybeSingle(),
+        supabase.from('rooms').select('*').eq('hostel_id', hostelId),
+        supabase.from('room_allotments').select('*').eq('status', 'Active')
+      ]);
+
+      if (!hostel) return null;
+      const total_room_count = rooms ? rooms.length : 0;
+      const vacant_rooms = rooms ? rooms.filter(r => r.status === 'Vacant').length : 0;
+      const occupied_rooms = rooms ? rooms.filter(r => r.status === 'Occupied').length : 0;
+      const maintenance_rooms = rooms ? rooms.filter(r => r.status === 'Under Maintenance').length : 0;
+      const total_capacity = rooms ? rooms.reduce((s, r) => s + (r.capacity || 0), 0) : 0;
+      const current_students = allotments ? allotments.filter(a => rooms.some(r => r.room_id === a.room_id)).length : 0;
+
+      return {
+        hostel_name: hostel.hostel_name,
+        total_rooms: hostel.total_rooms,
+        hostel_type: hostel.hostel_type,
+        total_room_count,
+        vacant_rooms,
+        occupied_rooms,
+        maintenance_rooms,
+        total_capacity,
+        current_students
+      };
     } catch (error) {
       console.error('Error getting hostel occupancy stats:', error.message);
       throw error;
     }
   }
 
-  // Get all hostels with basic statistics
   async findAllWithStats() {
     try {
-      const queryText = `
-        SELECT 
-          h.*,
-          u.username as warden_username,
-          COUNT(r.room_id) as room_count,
-          COUNT(CASE WHEN r.status = 'Vacant' THEN 1 END) as vacant_rooms,
-          COUNT(CASE WHEN r.status = 'Occupied' THEN 1 END) as occupied_rooms,
-          COUNT(ra.allotment_id) as current_students
-        FROM hostels h
-        LEFT JOIN users u ON h.warden_id = u.user_id
-        LEFT JOIN rooms r ON h.hostel_id = r.hostel_id
-        LEFT JOIN room_allotments ra ON r.room_id = ra.room_id AND ra.status = 'Active'
-        GROUP BY h.hostel_id, h.hostel_name, h.hostel_type, h.warden_id, h.total_rooms, h.location, u.username
-        ORDER BY h.hostel_name
-      `;
-      const result = await query(queryText);
-      return result.rows;
+      // Simplified: fetch hostels and compute stats per-hostel
+      const { data: hostels, error } = await supabase.from('hostels').select('*').order('hostel_name', { ascending: true });
+      if (error) throw error;
+      if (!hostels) return [];
+
+      const results = [];
+      for (const h of hostels) {
+        const roomsRes = await supabase.from('rooms').select('*').eq('hostel_id', h.hostel_id);
+        const rooms = roomsRes.data || [];
+        const room_count = rooms.length;
+        const vacant_rooms = rooms.filter(r => r.status === 'Vacant').length;
+        const occupied_rooms = rooms.filter(r => r.status === 'Occupied').length;
+        results.push({ ...h, room_count, vacant_rooms, occupied_rooms });
+      }
+      return results;
     } catch (error) {
       console.error('Error finding hostels with stats:', error.message);
       throw error;
     }
   }
 
-  // Update room count when rooms are added/removed
   async updateRoomCount(hostelId) {
     try {
-      const queryText = `
-        UPDATE hostels 
-        SET total_rooms = (
-          SELECT COUNT(*) FROM rooms WHERE hostel_id = $1
-        )
-        WHERE hostel_id = $1
-        RETURNING *
-      `;
-      const result = await query(queryText, [hostelId]);
-      return result.rows[0] || null;
+      const roomsRes = await supabase.from('rooms').select('*').eq('hostel_id', hostelId);
+      if (roomsRes.error) throw roomsRes.error;
+      const total_rooms = roomsRes.data ? roomsRes.data.length : 0;
+      const { data, error } = await supabase.from('hostels').update({ total_rooms }).eq('hostel_id', hostelId).select().maybeSingle();
+      if (error) throw error;
+      return data || null;
     } catch (error) {
       console.error('Error updating room count:', error.message);
       throw error;
     }
   }
 
-  // Find hostels managed by a specific warden
   async findByWarden(wardenId) {
     try {
-      const queryText = `
-        SELECT h.*, COUNT(r.room_id) as room_count
-        FROM hostels h
-        LEFT JOIN rooms r ON h.hostel_id = r.hostel_id
-        WHERE h.warden_id = $1
-        GROUP BY h.hostel_id
-        ORDER BY h.hostel_name
-      `;
-      const result = await query(queryText, [wardenId]);
-      return result.rows;
+      const { data, error } = await supabase.from('hostels').select('*, rooms(room_id)').eq('warden_id', wardenId).order('hostel_name', { ascending: true });
+      if (error) throw error;
+      return data || [];
     } catch (error) {
       console.error('Error finding hostels by warden:', error.message);
       throw error;

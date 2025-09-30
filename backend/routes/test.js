@@ -87,40 +87,11 @@ router.get('/test-models', async (req, res) => {
 // Get database schema info
 router.get('/schema-info', async (req, res) => {
   try {
-    const { query } = require('../config/database');
-    
-    const schemaQuery = `
-      SELECT 
-        table_name,
-        column_name,
-        data_type,
-        is_nullable,
-        column_default
-      FROM information_schema.columns 
-      WHERE table_schema = 'public' 
-      ORDER BY table_name, ordinal_position
-    `;
-    
-    const result = await query(schemaQuery);
-    
-    // Group columns by table
-    const tables = {};
-    result.rows.forEach(row => {
-      if (!tables[row.table_name]) {
-        tables[row.table_name] = [];
-      }
-      tables[row.table_name].push({
-        column: row.column_name,
-        type: row.data_type,
-        nullable: row.is_nullable === 'YES',
-        default: row.column_default
-      });
-    });
-
+    // Schema info is not available without direct DB connection. Return a placeholder or use Supabase pg_meta if configured.
     res.json({
-      message: 'Database schema information',
+      message: 'Schema information not available in supabase-only mode',
       timestamp: new Date().toISOString(),
-      tables
+      tables: {}
     });
 
   } catch (error) {

@@ -126,11 +126,9 @@ class AuthService {
   // Change password
   async changePassword(userId, currentPassword, newPassword) {
     try {
-      // Get user with password hash
-      const queryText = 'SELECT * FROM users WHERE user_id = $1';
-      const { query } = require('../config/database');
-      const result = await query(queryText, [userId]);
-      const user = result.rows[0];
+      // Get user with password hash via model
+      const { UserModel } = require('../models');
+      const user = await UserModel.findByIdWithPassword(userId);
 
       if (!user) {
         throw new Error('User not found');

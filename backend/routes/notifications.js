@@ -9,11 +9,9 @@ router.get('/my-notifications', authenticateToken, async (req, res) => {
     console.log('📢 Getting notifications for user:', userId);
     
     // Get student info
-    const { StudentModel } = require('../models');
-    const student = await StudentModel.findByUserId(userId);
-    
-    const { query } = require('../config/database');
-    let notifications = [];
+  const { StudentModel, RoomAllotmentModel } = require('../models');
+  const student = await StudentModel.findByUserId(userId);
+  let notifications = [];
     
     if (!student) {
       // User is not a student - show general notifications
@@ -27,35 +25,21 @@ router.get('/my-notifications', authenticateToken, async (req, res) => {
       });
     } else {
       // Check if student has room allocation
-      const roomQuery = `
-        SELECT ra.*, r.room_no, h.hostel_name, h.hostel_type
-        FROM room_allotments ra
-        JOIN rooms r ON ra.room_id = r.room_id
-        JOIN hostels h ON r.hostel_id = h.hostel_id
-        WHERE ra.student_id = $1 AND ra.status = 'Active'
-        ORDER BY ra.allotment_date DESC
-        LIMIT 1
-      `;
-      
-      const roomResult = await query(roomQuery, [student.student_id]);
-      const hasRoom = roomResult.rows.length > 0;
+      const currentAllotment = await RoomAllotmentModel.findActiveByStudent(student.student_id);
+      const hasRoom = !!currentAllotment;
       
       if (!hasRoom) {
         // No room allocation - show vacant hostels and allocation info
         
-        // Get vacant rooms count
-        const vacantRoomsQuery = `
-          SELECT h.hostel_name, h.hostel_type, COUNT(r.room_id) as vacant_rooms
-          FROM hostels h
-          JOIN rooms r ON h.hostel_id = r.hostel_id
-          WHERE r.status = 'Vacant'
-          GROUP BY h.hostel_id, h.hostel_name, h.hostel_type
-          HAVING COUNT(r.room_id) > 0
-          ORDER BY COUNT(r.room_id) DESC
-        `;
-        
-        const vacantResult = await query(vacantRoomsQuery);
-        const vacantHostels = vacantResult.rows;
+        // Get vacant rooms count via models
+        const { HostelModel, RoomModel } = require('../models');
+        const hostels = await HostelModel.findAll();
+        const vacantHostels = [];
+        for (const h of hostels) {
+          const rooms = await RoomModel.findByHostel(h.hostel_id);
+          const vacant_rooms = rooms.filter(r => r.status === 'Vacant').length;
+          if (vacant_rooms > 0) vacantHostels.push({ hostel_name: h.hostel_name, hostel_type: h.hostel_type, vacant_rooms });
+        }
         
         if (vacantHostels.length > 0) {
           const hostelList = vacantHostels.map(h => 
@@ -94,14 +78,8 @@ router.get('/my-notifications', authenticateToken, async (req, res) => {
         });
         
         // Check for pending maintenance requests
-        const maintenanceQuery = `
-          SELECT COUNT(*) as pending_count
-          FROM maintenance_requests mr
-          WHERE mr.student_id = $1 AND mr.status IN ('Pending', 'In Progress')
-        `;
-        
-        const maintenanceResult = await query(maintenanceQuery, [student.student_id]);
-        const pendingRequests = parseInt(maintenanceResult.rows[0].pending_count);
+        const { MaintenanceRequestModel } = require('../models');
+        const pendingRequests = (await MaintenanceRequestModel.count({ student_id: student.student_id, status: 'Pending' })) || 0;
         
         if (pendingRequests > 0) {
           notifications.push({
@@ -115,37 +93,22 @@ router.get('/my-notifications', authenticateToken, async (req, res) => {
         }
       }
       
-      // Get actual notifications from database if they exist
-      const dbNotificationsQuery = `
-        SELECT 
-          n.notification_id,
-          n.title,
-          n.message,
-          n.type,
-          n.created_at,
-          n.is_read
-        FROM notifications n
-        WHERE n.user_id = $1 OR n.user_id IS NULL
-        ORDER BY n.created_at DESC
-        LIMIT 10
-      `;
-      
+      // Try to get notifications from notifications table if it exists
       try {
-        const dbNotifications = await query(dbNotificationsQuery, [userId]);
-        const formattedDbNotifications = dbNotifications.rows.map(notif => ({
-          id: `db-${notif.notification_id}`,
+        const { NotificationModel } = require('../models');
+        const dbNotifications = await NotificationModel.findForUser(userId);
+        const formattedDbNotifications = (dbNotifications || []).map(notif => ({
+          id: `db-${notif.notification_id || notif.id}`,
           title: notif.title,
           message: notif.message,
-          type: notif.type,
-          date: notif.created_at,
+          type: notif.type || 'info',
+          date: notif.created_at || notif.date,
           priority: 'normal',
-          isRead: notif.is_read
+          isRead: notif.is_read || false
         }));
-        
-        // Add database notifications to the list
         notifications = [...notifications, ...formattedDbNotifications];
       } catch (dbError) {
-        console.log('ℹ️ No notifications table found, using dynamic notifications only');
+        console.log('ℹ️ No notifications table found or error reading it, using dynamic notifications only', dbError.message);
       }
     }
     

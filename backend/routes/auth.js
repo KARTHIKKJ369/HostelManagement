@@ -3,7 +3,6 @@ const { body, validationResult } = require('express-validator');
 const router = express.Router();
 const AuthService = require('../services/AuthService');
 const { isAuthenticated } = require('../middleware/auth');
-const { query } = require('../config/database');
 
 // Admin codes for secure registration
 const ADMIN_CODES = {
@@ -354,50 +353,34 @@ router.post('/student-profile', isAuthenticated, async (req, res) => {
     }
     
     // Check if user is a student
-    const userResult = await query('SELECT role FROM users WHERE user_id = $1', [userId]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    if (userResult.rows[0].role !== 'Student') {
-      return res.status(400).json({ 
-        message: 'Only students can create student profiles' 
-      });
-    }
-    
+    const { UserModel, StudentModel } = require('../models');
+    const u = await UserModel.findById(userId);
+    if (!u) return res.status(404).json({ message: 'User not found' });
+    if (u.role !== 'Student') return res.status(400).json({ message: 'Only students can create student profiles' });
+
     // Check if student profile already exists
-    const existingStudent = await query('SELECT * FROM students WHERE user_id = $1', [userId]);
-    if (existingStudent.rows.length > 0) {
-      return res.status(400).json({ 
-        message: 'Student profile already exists. You can update it instead.' 
-      });
-    }
+    const existingStudent = await StudentModel.findByUserId(userId);
+    if (existingStudent) return res.status(400).json({ message: 'Student profile already exists. You can update it instead.' });
     
     // Insert student profile
-    const insertResult = await query(`
-      INSERT INTO students (
-        user_id, name, reg_no, year_of_study, department, 
-        keam_rank, distance_category, category, sgpa, backlogs
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *
-    `, [
-      userId,
+    const newStudent = await StudentModel.create({
+      user_id: userId,
       name,
-      regNo,
-      parseInt(yearOfStudy),
-      department || null,
-      keamRank ? parseInt(keamRank) : null,
-      distanceCategory || null,
-      category || null,
-      sgpa ? parseFloat(sgpa) : null,
-      backlogs ? parseInt(backlogs) : 0
-    ]);
-    
-    console.log('✅ Student profile created successfully:', insertResult.rows[0]);
-    
+      reg_no: regNo,
+      year_of_study: parseInt(yearOfStudy),
+      department: department || null,
+      keam_rank: keamRank ? parseInt(keamRank) : null,
+      distance_category: distanceCategory || null,
+      category: category || null,
+      sgpa: sgpa ? parseFloat(sgpa) : null,
+      backlogs: backlogs ? parseInt(backlogs) : 0
+    });
+
+    console.log('✅ Student profile created successfully:', newStudent);
+
     res.status(201).json({
       message: 'Student profile created successfully',
-      student: insertResult.rows[0]
+      student: newStudent
     });
     
   } catch (error) {

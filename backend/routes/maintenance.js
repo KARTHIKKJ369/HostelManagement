@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
+const { StudentModel, RoomAllotmentModel, MaintenanceRequestModel } = require('../models');
 
 // GET /api/maintenance/my-requests - Get maintenance requests for logged-in student
 router.get('/my-requests', authenticateToken, async (req, res) => {
@@ -8,9 +9,8 @@ router.get('/my-requests', authenticateToken, async (req, res) => {
     const userId = req.user.userId || req.user.id;
     console.log('🔧 Getting maintenance requests for user:', userId);
     
-    // Get student ID first
-    const { StudentModel } = require('../models');
-    const student = await StudentModel.findByUserId(userId);
+  // Get student ID first
+  const student = await StudentModel.findByUserId(userId);
     
     if (!student) {
       // No student record means user hasn't been set up as student - return empty requests
@@ -24,29 +24,8 @@ router.get('/my-requests', authenticateToken, async (req, res) => {
       });
     }
     
-    // Get maintenance requests from database
-    const { query } = require('../config/database');
-    
-    const requestsQuery = `
-      SELECT 
-        mr.request_id,
-        mr.category,
-        mr.description,
-        mr.priority,
-        mr.status,
-        mr.created_at as request_date,
-        mr.updated_at as completion_date,
-        r.room_no,
-        h.hostel_name
-      FROM maintenance_requests mr
-      LEFT JOIN rooms r ON mr.room_id = r.room_id
-      LEFT JOIN hostels h ON r.hostel_id = h.hostel_id
-      WHERE mr.student_id = $1
-      ORDER BY mr.created_at DESC
-    `;
-    
-    const result = await query(requestsQuery, [student.student_id]);
-    const requests = result.rows;
+  // Get maintenance requests using model
+  const requests = await MaintenanceRequestModel.findByStudent(student.student_id);
     
     console.log('📋 Found maintenance requests:', {
       studentId: student.student_id,
@@ -87,9 +66,8 @@ router.post('/submit', authenticateToken, async (req, res) => {
     
     console.log('📝 Submitting maintenance request:', { userId, type, description, priority });
     
-    // Get student ID
-    const { StudentModel } = require('../models');
-    const student = await StudentModel.findByUserId(userId);
+  // Get student ID
+  const student = await StudentModel.findByUserId(userId);
     
     if (!student) {
       return res.status(404).json({
@@ -98,20 +76,9 @@ router.post('/submit', authenticateToken, async (req, res) => {
       });
     }
     
-    // Get student's current room
-    const { query } = require('../config/database');
-    
-    const roomQuery = `
-      SELECT r.room_id
-      FROM room_allotments ra
-      JOIN rooms r ON ra.room_id = r.room_id
-      WHERE ra.student_id = $1 AND ra.status = 'Active'
-      ORDER BY ra.allotment_date DESC
-      LIMIT 1
-    `;
-    
-    const roomResult = await query(roomQuery, [student.student_id]);
-    const roomId = roomResult.rows[0]?.room_id;
+  // Get student's current room via RoomAllotmentModel
+  const currentAllotment = await RoomAllotmentModel.findActiveByStudent(student.student_id);
+    const roomId = currentAllotment ? currentAllotment.room_id : null;
     
     if (!roomId) {
       return res.status(400).json({
@@ -120,22 +87,8 @@ router.post('/submit', authenticateToken, async (req, res) => {
       });
     }
     
-    // Insert maintenance request
-    const insertQuery = `
-      INSERT INTO maintenance_requests (student_id, room_id, category, description, priority, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, 'Pending', CURRENT_TIMESTAMP)
-      RETURNING request_id, created_at as request_date
-    `;
-    
-    const insertResult = await query(insertQuery, [
-      student.student_id,
-      roomId,
-      type,
-      description,
-      priority || 'Medium'
-    ]);
-    
-    const newRequest = insertResult.rows[0];
+  // Insert maintenance request via model
+  const newRequest = await MaintenanceRequestModel.createRequest(student.student_id, roomId, type, description, priority || 'Medium');
     
     console.log('✅ Maintenance request submitted:', {
       requestId: newRequest.request_id,
