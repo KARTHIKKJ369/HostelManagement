@@ -1374,20 +1374,140 @@ async function viewAnalytics() {
 }
 
 function generateReports() {
-    const content = `
-      <div style="display:flex; gap:0.5rem; align-items:center;">
-        <label>Choose dataset:</label>
-        <select id="reportEntity" class="form-select">
-          <option value="users">Users</option>
-          <option value="hostels">Hostels</option>
-          <option value="rooms">Rooms</option>
-          <option value="allotments">Room Allotments</option>
-          <option value="applications">Applications</option>
-          <option value="maintenance">Maintenance</option>
-        </select>
-        <button class="btn btn-primary" onclick="downloadReport()">Download CSV</button>
-      </div>`;
-    showModal('Generate Reports', content);
+        const content = `
+            <div class="form-row" style="align-items:center; gap:0.5rem;">
+                <div class="form-group" style="margin:0;">
+                    <label>Choose dataset:</label>
+                    <select id="reportEntity" class="form-select" onchange="onReportEntityChange()">
+                        <option value="users">Users</option>
+                        <option value="hostels">Hostels</option>
+                        <option value="rooms">Rooms</option>
+                        <option value="allotments">Room Allotments</option>
+                        <option value="applications">Applications</option>
+                        <option value="maintenance">Maintenance</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin:0; display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" onclick="loadReportPreview()">Load Preview</button>
+                    <button class="btn btn-primary" onclick="downloadReport()">Download CSV</button>
+                </div>
+            </div>
+            <div id="reportDesc" style="color:#6b7280; font-size: 0.95rem; margin: 8px 0 12px 0;"></div>
+            <div id="reportSummary"></div>
+            <div id="reportTable" style="margin-top: 10px;"></div>`;
+        showModal('Generate Reports', content);
+        onReportEntityChange();
+}
+
+function onReportEntityChange() {
+        const entity = document.getElementById('reportEntity').value;
+        const descEl = document.getElementById('reportDesc');
+        const descriptions = {
+            users: 'All application users with roles (Student, Warden, SuperAdmin). Useful for access audits and onboarding checks.',
+            hostels: 'Hostel blocks with type (Boys/Girls), location, and assigned warden if any.',
+            rooms: 'Individual rooms with capacity and status (Vacant, Occupied, Under Maintenance).',
+            allotments: 'Room allotments linking students to rooms, with status and key dates.',
+            applications: 'Allotment applications from students with current status and preferences.',
+            maintenance: 'Maintenance requests with status, priority and timestamps.'
+        };
+        descEl.textContent = descriptions[entity] || '';
+        // Clear previous preview
+        document.getElementById('reportSummary').innerHTML = '';
+        document.getElementById('reportTable').innerHTML = '';
+}
+
+async function loadReportPreview() {
+        const entity = document.getElementById('reportEntity').value;
+        const token = TokenManager.getToken();
+        const url = `${API_BASE_URL}/superadmin/export/${entity}`;
+        const summaryEl = document.getElementById('reportSummary');
+        const tableEl = document.getElementById('reportTable');
+        summaryEl.innerHTML = '<div style="color:#6b7280;">Loading preview…</div>';
+        tableEl.innerHTML = '';
+        try {
+                const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'text/csv' } });
+                if (!resp.ok) throw new Error('Failed to load CSV');
+                const csvText = await resp.text();
+                const { headers, rows } = parseCSV(csvText);
+                // Summary KPIs
+                const total = rows.length;
+                const breakdowns = buildBreakdowns(headers, rows);
+                summaryEl.innerHTML = renderReportSummary(total, breakdowns);
+                // Preview table (first 20 rows)
+                const preview = rows.slice(0, 20);
+                tableEl.innerHTML = renderReportTable(headers, preview);
+        } catch (e) {
+                summaryEl.innerHTML = '<div style="color:#dc2626;">Failed to load preview</div>';
+        }
+}
+
+function parseCSV(text) {
+        if (!text || !text.trim()) return { headers: [], rows: [] };
+        const lines = text.split(/\r?\n/).filter(l => l.length > 0);
+        if (!lines.length) return { headers: [], rows: [] };
+        const headers = splitCSVLine(lines[0]);
+        const rows = lines.slice(1).map(line => splitCSVLine(line)).filter(cols => cols.length === headers.length)
+            .map(cols => Object.fromEntries(headers.map((h, i) => [h, cols[i]])));
+        return { headers, rows };
+}
+
+function splitCSVLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+                const c = line[i];
+                if (inQuotes) {
+                        if (c === '"' && line[i + 1] === '"') { current += '"'; i++; }
+                        else if (c === '"') { inQuotes = false; }
+                        else { current += c; }
+                } else {
+                        if (c === '"') { inQuotes = true; }
+                        else if (c === ',') { result.push(current); current = ''; }
+                        else { current += c; }
+                }
+        }
+        result.push(current);
+        return result;
+}
+
+function buildBreakdowns(headers, rows) {
+        const fields = ['status', 'role', 'hostel_type', 'priority'];
+        const present = fields.filter(f => headers.includes(f));
+        const breakdowns = {};
+        for (const f of present) {
+                const counts = {};
+                for (const r of rows) {
+                        const key = (r[f] || '-');
+                        counts[key] = (counts[key] || 0) + 1;
+                }
+                // Sort by count desc and take top 6
+                breakdowns[f] = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+        }
+        return breakdowns;
+}
+
+function renderReportSummary(total, breakdowns) {
+        const badges = `
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem; margin-bottom:0.75rem;">
+                <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:12px; color:#6b7280;">Total rows</div>
+                    <div style="font-weight:700; font-size:20px;">${total}</div>
+                </div>
+            </div>`;
+        const sections = Object.entries(breakdowns).map(([field, list]) => {
+                const title = field.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const body = list.length ? list.map(([k,v]) => `<div style="display:flex; justify-content:space-between;"><span>${k}</span><strong>${v}</strong></div>`).join('') : '<div style="color:#6b7280;">No data</div>';
+                return `<div class="form-group"><h4>${title}</h4>${body}</div>`;
+        }).join('');
+        return `${badges}<div class="form-row">${sections}</div>`;
+}
+
+function renderReportTable(headers, rows) {
+        if (!headers.length) return '<div style="color:#6b7280;">No data to display</div>';
+        const thead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
+        const tbody = rows.length ? rows.map(r => `<tr>${headers.map(h => `<td>${r[h] ?? ''}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}" style="text-align:center; color:#6b7280;">No rows</td></tr>`;
+        return `<div style="max-height:300px; overflow:auto;"><table class="table" style="width:100%; border-collapse:collapse;">${thead}<tbody>${tbody}</tbody></table></div>`;
 }
 
 async function downloadReport() {
@@ -1508,16 +1628,53 @@ async function maintenanceReports() {
                 const resp = await API.call('/superadmin/maintenance/reports', { method: 'GET' });
                 const s = resp.stats || { byStatus:{}, byCategory:{}, byPriority:{}, total:0 };
                 const recent = resp.recent || [];
-                const renderPairs = (obj) => Object.entries(obj).map(([k,v]) => `<div style="display:flex; justify-content:space-between;"><span>${k}</span><strong>${v}</strong></div>`).join('');
-                const recentRows = recent.map(r => `
+                const renderPairs = (obj) => {
+                    const entries = Object.entries(obj || {});
+                    if (!entries.length) return '<div style="color:#6b7280;">No data</div>';
+                    return entries.map(([k,v]) => `<div style="display:flex; justify-content:space-between;"><span>${k}</span><strong>${v}</strong></div>`).join('');
+                };
+
+                // Friendly KPIs at the top
+                const pending = (s.byStatus && (s.byStatus['Pending'] || s.byStatus['pending'])) || 0;
+                const inProgress = (s.byStatus && (s.byStatus['In Progress'] || s.byStatus['in progress'])) || 0;
+                const completed = (s.byStatus && (s.byStatus['Completed'] || s.byStatus['completed'])) || 0;
+
+                // Recent table rows or empty-row message
+                const recentRows = recent.length ? recent.map(r => `
                         <tr>
                             <td>${r.request_id}</td>
                             <td>${r.status}</td>
-                            <td>${r.category}</td>
-                            <td>${r.priority}</td>
-                            <td>${new Date(r.created_at).toLocaleString()}</td>
-                        </tr>`).join('');
+                            <td>${r.category || '-'}</td>
+                            <td>${r.priority || '-'}</td>
+                            <td>${r.created_at ? new Date(r.created_at).toLocaleString() : '-'}</td>
+                        </tr>`).join('') : `<tr><td colspan="5" style="text-align:center; color:#6b7280;">No recent maintenance requests</td></tr>`;
+
+                // If there's no data at all, show a simple explanatory message
+                const noDataBanner = (s.total === 0) ? `
+                    <div style="background:#f8fafc; border:1px solid #e5e7eb; color:#6b7280; padding:12px; border-radius:8px; margin-bottom:12px;">
+                        No maintenance requests found in the last 200 records.
+                    </div>` : '';
+
                 const html = `
+                    ${noDataBanner}
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem; margin-bottom:0.75rem;">
+                        <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:8px; padding:10px; text-align:center;">
+                            <div style="font-size:12px; color:#6b7280;">Total (last 200)</div>
+                            <div style="font-weight:700; font-size:20px;">${s.total || 0}</div>
+                        </div>
+                        <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:10px; text-align:center;">
+                            <div style="font-size:12px; color:#c2410c;">Pending</div>
+                            <div style="font-weight:700; font-size:20px; color:#c2410c;">${pending}</div>
+                        </div>
+                        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; text-align:center;">
+                            <div style="font-size:12px; color:#1d4ed8;">In Progress</div>
+                            <div style="font-weight:700; font-size:20px; color:#1d4ed8;">${inProgress}</div>
+                        </div>
+                        <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px; text-align:center;">
+                            <div style="font-size:12px; color:#047857;">Completed</div>
+                            <div style="font-weight:700; font-size:20px; color:#047857;">${completed}</div>
+                        </div>
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <h4>Status</h4>
@@ -1534,11 +1691,11 @@ async function maintenanceReports() {
                             ${renderPairs(s.byPriority)}
                         </div>
                         <div class="form-group">
-                            <h4>Total (last 200)</h4>
-                            <strong>${s.total}</strong>
+                            <h4>Tips</h4>
+                            <div style="color:#6b7280; font-size:13px;">Use the Maintenance Overview card to schedule upcoming work, or ask wardens/students to submit maintenance requests so they appear here.</div>
                         </div>
                     </div>
-                    <div style="max-height:300px; overflow:auto;">
+                    <div style="max-height:300px; overflow:auto; margin-top:8px;">
                         <table class="table" style="width:100%; border-collapse:collapse;">
                             <thead><tr><th>ID</th><th>Status</th><th>Category</th><th>Priority</th><th>Created</th></tr></thead>
                             <tbody>${recentRows}</tbody>
@@ -1858,8 +2015,183 @@ function healthCheck() {
     }, 2000);
 }
 
-function manageNotifications() {
-    alert('Notification Management coming soon!');
+async function manageNotifications() {
+        try {
+                // Fetch latest notifications for display
+                const listResp = await API.call('/superadmin/notifications?limit=50', { method: 'GET' });
+                const items = listResp.notifications || [];
+                const rows = items.map(n => `
+                    <tr>
+                        <td>${n.notification_id || ''}</td>
+                        <td>${n.title ? `<strong>${n.title}</strong><br>` : ''}${n.message || ''}</td>
+                        <td>${n.receiver_role || (n.receiver_id ? `User #${n.receiver_id}` : 'All')}</td>
+                        <td>${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</td>
+                        <td><button class="btn btn-secondary" onclick="deleteNotification(${n.notification_id})">Delete</button></td>
+                    </tr>`).join('');
+                const html = `
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1; min-width:280px;">
+                            <h4>Create Notification</h4>
+                            <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem;">
+                                <label for="notifTarget">Target:</label>
+                                <select id="notifTarget" class="form-select" onchange="onNotifTargetChange()">
+                                    <option value="All">All</option>
+                                    <option value="Role">Role</option>
+                                    <option value="User">User</option>
+                                </select>
+                                                <select id="notifRole" class="form-select" style="display:none;">
+                                    <option value="Student">Student</option>
+                                    <option value="Warden">Warden</option>
+                                </select>
+                                                <div id="notifUserPicker" style="display:none; position:relative;">
+                                                    <input id="notifUserQuery" class="form-input" placeholder="Search username or email" oninput="searchUsersForNotification(this.value)" />
+                                                    <div id="notifUserResults" style="position:absolute; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:6px; margin-top:4px; max-height:180px; overflow:auto; width:100%; display:none;"></div>
+                                                </div>
+                            </div>
+                            <input id="notifTitle" class="form-input" placeholder="Title (optional)" />
+                            <textarea id="notifMessage" class="form-input" placeholder="Message" rows="3" style="margin-top:0.5rem;"></textarea>
+                            <button class="btn btn-primary" style="margin-top:0.5rem;" onclick="submitNotification()">Send</button>
+                        </div>
+                        <div class="form-group" style="flex:1; min-width:380px;">
+                            <h4>Recent Notifications</h4>
+                            <div style="max-height:300px; overflow:auto;">
+                                <table class="table" style="width:100%;">
+                                    <thead><tr><th>ID</th><th>Message</th><th>Target</th><th>Created</th><th></th></tr></thead>
+                                    <tbody id="notifRows">${rows}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>`;
+                showModal('Notification Manager', html);
+        } catch (e) {
+                UIHelper.showAlert('Failed to load notifications', 'error');
+                console.error(e);
+        }
+}
+
+function onNotifTargetChange() {
+        const target = document.getElementById('notifTarget').value;
+        document.getElementById('notifRole').style.display = (target === 'Role') ? 'inline-block' : 'none';
+    document.getElementById('notifUserPicker').style.display = (target === 'User') ? 'inline-block' : 'none';
+}
+
+async function submitNotification() {
+        const target = document.getElementById('notifTarget').value;
+        const role = document.getElementById('notifRole').value;
+    const user_id = window.__notifSelectedUserId ? parseInt(window.__notifSelectedUserId) : undefined;
+        const title = document.getElementById('notifTitle').value.trim();
+        const message = document.getElementById('notifMessage').value.trim();
+        if (!message) { UIHelper.showAlert('Message is required', 'error'); return; }
+    if (target === 'User' && !user_id) { UIHelper.showAlert('Please select a user from suggestions', 'error'); return; }
+        try {
+                const body = { target, role, user_id: isNaN(user_id) ? undefined : user_id, title: title || undefined, message };
+                const resp = await API.call('/superadmin/notifications', { method: 'POST', body: JSON.stringify(body) });
+                // Prepend the new row into the modal table for quick feedback
+                const n = resp.notification || {};
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${n.notification_id || ''}</td><td>${n.title ? `<strong>${n.title}</strong><br>` : ''}${n.message || ''}</td><td>${n.receiver_role || (n.receiver_id ? `User #${n.receiver_id}` : 'All')}</td><td>${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</td><td><button class="btn btn-secondary" onclick="deleteNotification(${n.notification_id})">Delete</button></td>`;
+                const tbody = document.getElementById('notifRows');
+                if (tbody) tbody.prepend(tr);
+                // Clear inputs
+                document.getElementById('notifTitle').value = '';
+                document.getElementById('notifMessage').value = '';
+                UIHelper.showAlert('Notification sent', 'success');
+                // Also refresh dashboard list
+                try { await loadSystemNotifications(); } catch(_) {}
+        } catch (e) {
+                UIHelper.showAlert('Failed to create notification', 'error');
+                console.error(e);
+        }
+}
+
+async function searchUsersForNotification(q) {
+    const resultsBox = document.getElementById('notifUserResults');
+    window.__notifSelectedUserId = undefined;
+    const query = (q || '').trim();
+    if (!query || query.length < 2) {
+        resultsBox.style.display = 'none';
+        resultsBox.innerHTML = '';
+        return;
+    }
+
+    // Debounce to avoid spamming API
+    clearTimeout(window.__notifSearchTimer);
+    resultsBox.innerHTML = '<div style="padding:6px 8px; color:#6b7280;">Searching...</div>';
+    resultsBox.style.display = 'block';
+    window.__notifSearchTimer = setTimeout(async () => {
+        try {
+            // Cache results by query to reduce duplicate calls
+            window.__notifUserCache = window.__notifUserCache || {};
+            const cacheKey = query.toLowerCase();
+            if (window.__notifUserCache[cacheKey]) {
+                renderUserSearchResults(window.__notifUserCache[cacheKey]);
+                return;
+            }
+
+            let users = [];
+            try {
+                const resp = await API.call(`/superadmin/users/search?q=${encodeURIComponent(query)}`, { method: 'GET' });
+                users = resp.users || [];
+            } catch (err) {
+                // Fallback: fetch all users and filter client-side if search route not available
+                try {
+                    const all = await API.call('/superadmin/users', { method: 'GET' });
+                    const ql = query.toLowerCase();
+                    users = (all || []).filter(u =>
+                        (u.username || '').toLowerCase().includes(ql) || (u.email || '').toLowerCase().includes(ql)
+                    ).slice(0, 20);
+                } catch (fallbackErr) {
+                    throw fallbackErr;
+                }
+            }
+
+            window.__notifUserCache[cacheKey] = users;
+            renderUserSearchResults(users);
+        } catch (e) {
+            resultsBox.innerHTML = '<div style="padding:6px 8px; color:#dc2626;">Search failed</div>';
+            resultsBox.style.display = 'block';
+        }
+    }, 350);
+}
+
+function renderUserSearchResults(users) {
+    const resultsBox = document.getElementById('notifUserResults');
+    if (!users.length) {
+        resultsBox.innerHTML = '<div style="padding:6px 8px; color:#6b7280;">No users found</div>';
+        resultsBox.style.display = 'block';
+        return;
+    }
+    resultsBox.innerHTML = users.map(u => `
+      <div class="notif-user-option" onclick="selectNotifUser(${u.user_id}, '${(u.username||'').replace(/'/g, "&#39;")}', '${((u.email||'')+'').replace(/'/g, "&#39;")}')" 
+           style="padding:6px 8px; cursor:pointer; border-bottom:1px solid #f3f4f6;">
+        <div style="font-weight:500;">${u.username || '(no username)'} <small style="color:#6b7280;">(${u.role || '-'})</small></div>
+        ${u.email ? `<div style=\"color:#6b7280; font-size:12px;\">${u.email}</div>` : ''}
+      </div>`).join('');
+    resultsBox.style.display = 'block';
+}
+
+function selectNotifUser(id, username, email) {
+    window.__notifSelectedUserId = id;
+    const q = document.getElementById('notifUserQuery');
+    q.value = `${username}${email ? ' <' + email + '>' : ''}`;
+    const resultsBox = document.getElementById('notifUserResults');
+    resultsBox.style.display = 'none';
+    resultsBox.innerHTML = '';
+}
+
+async function deleteNotification(id) {
+        if (!id) return;
+        if (!confirm('Delete this notification?')) return;
+        try {
+                await API.call(`/superadmin/notifications/${id}`, { method: 'DELETE' });
+                const tbody = document.getElementById('notifRows');
+                if (tbody) {
+                        [...tbody.children].forEach(tr => { if (tr.firstChild && tr.firstChild.textContent == id) tr.remove(); });
+                }
+                try { await loadSystemNotifications(); } catch(_) {}
+        } catch (e) {
+                UIHelper.showAlert('Failed to delete notification', 'error');
+        }
 }
 
 // Logout function

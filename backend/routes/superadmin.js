@@ -242,7 +242,29 @@ router.get('/export/:entity', authenticateToken, requireSuperAdminRole, async (r
     const { entity } = req.params;
     let rows = [];
     if (entity === 'users') rows = await UserModel.findAll();
-    else if (entity === 'hostels') rows = await HostelModel.findAll();
+    else if (entity === 'hostels') {
+      const hostels = await HostelModel.findAll();
+      // Enrich with warden details for readability
+      const wardenIds = [...new Set((hostels || []).map(h => h.warden_id).filter(Boolean))];
+      let wardenMap = {};
+      if (wardenIds.length) {
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .select('user_id, username, email')
+            .in('user_id', wardenIds);
+          if (error) throw error;
+          wardenMap = (data || []).reduce((acc, u) => { acc[u.user_id] = u; return acc; }, {});
+        } catch (e) {
+          console.warn('⚠️ Failed to enrich hostels with warden names:', e.message);
+        }
+      }
+      rows = (hostels || []).map(h => ({
+        ...h,
+        warden_name: h.warden_id ? (wardenMap[h.warden_id]?.username || '') : '',
+        warden_email: h.warden_id ? (wardenMap[h.warden_id]?.email || '') : ''
+      }));
+    }
     else if (entity === 'rooms') rows = await RoomModel.findAll();
     else if (entity === 'allotments') rows = await RoomAllotmentModel.findAll();
     else if (entity === 'applications') rows = await AllotmentApplicationModel.findAll();
@@ -425,6 +447,26 @@ router.get('/users', authenticateToken, requireSuperAdminRole, async (req, res) 
   } catch (error) {
     console.error('❌ Error loading users:', error);
     res.status(500).json({ message: 'Failed to load users' });
+  }
+});
+
+// GET /api/superadmin/users/search?q= - search users by username/email
+router.get('/users/search', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ success: true, users: [] });
+    // Prefer Supabase ilike search
+    const { data, error } = await supabase
+      .from('users')
+      .select('user_id, username, email, role')
+      .or(`username.ilike.%${q}%,email.ilike.%${q}%`)
+      .order('username', { ascending: true })
+      .limit(20);
+    if (error) throw error;
+    res.json({ success: true, users: data || [] });
+  } catch (e) {
+    console.error('❌ User search error:', e.message);
+    res.status(500).json({ success: false, message: 'Failed to search users' });
   }
 });
 
@@ -1241,16 +1283,105 @@ function sampleAdminActivity() {
 // GET /api/superadmin/system-notifications - operational/system notifications
 router.get('/system-notifications', authenticateToken, requireSuperAdminRole, async (req, res) => {
   try {
-    // Basic examples; could read from notifications or health checks
-    const list = [
-      { type: 'warning', message: 'Disk usage approaching 70% threshold', priority: 'Medium' },
-      { type: 'info', message: 'System maintenance scheduled for next Sunday', priority: 'Low' },
-      { type: 'error', message: 'Failed login attempts detected from unknown IP', priority: 'High' }
-    ];
+    // Prefer DB notifications; fallback to sample
+    let rows = [];
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('notification_id, title, message, created_at, receiver_role, receiver_id')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      rows = data || [];
+    } catch (e) {
+      // table may not exist; keep rows empty, will fallback
+    }
+
+    const derivePriority = (t, m) => {
+      const s = `${t || ''} ${m || ''}`.toLowerCase();
+      if (/(error|failed|critical|security)/.test(s)) return 'High';
+      if (/(warn|maintenance|degrad|delay)/.test(s)) return 'Medium';
+      return 'Low';
+    };
+
+    let list = rows.map(r => ({
+      id: r.notification_id,
+      message: r.title ? `${r.title}: ${r.message}` : r.message,
+      priority: derivePriority(r.title, r.message),
+      created_at: r.created_at
+    }));
+
+    if (!list.length) {
+      list = [
+        { message: 'Disk usage approaching 70% threshold', priority: 'Medium' },
+        { message: 'System maintenance scheduled for next Sunday', priority: 'Low' },
+        { message: 'Failed login attempts detected from unknown IP', priority: 'High' }
+      ];
+    }
+
     res.json({ success: true, notifications: list });
   } catch (error) {
     console.error('❌ System notifications error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to load system notifications' });
+  }
+});
+
+// Notifications management APIs for SuperAdmin
+// GET /api/superadmin/notifications?limit=20
+router.get('/notifications', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '20'), 100);
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('notification_id, title, message, receiver_role, receiver_id, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    res.json({ success: true, notifications: data || [] });
+  } catch (error) {
+    console.error('❌ List notifications error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to load notifications' });
+  }
+});
+
+// POST /api/superadmin/notifications - create notification
+router.post('/notifications', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const { target = 'All', role, user_id, title, message } = req.body || {};
+    if (!message) return res.status(400).json({ success: false, message: 'message is required' });
+    let payload;
+    if (target === 'User') {
+      if (!user_id) return res.status(400).json({ success: false, message: 'user_id is required for target User' });
+      payload = { sender_id: req.user.userId, receiver_id: user_id, receiver_role: null, title, message };
+    } else if (target === 'Role') {
+      if (!role || !['Student', 'Warden'].includes(role)) return res.status(400).json({ success: false, message: 'role must be Student or Warden' });
+      payload = { sender_id: req.user.userId, receiver_id: null, receiver_role: role, title, message };
+    } else {
+      // All
+      payload = { sender_id: req.user.userId, receiver_id: null, receiver_role: 'All', title, message };
+    }
+    const { data, error } = await supabase.from('notifications').insert(payload).select().maybeSingle();
+    if (error) throw error;
+    logAudit('INFO', 'NOTIFICATION_CREATE', { notification_id: data?.notification_id, target, role, user_id }, req);
+    res.status(201).json({ success: true, notification: data });
+  } catch (error) {
+    console.error('❌ Create notification error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to create notification' });
+  }
+});
+
+// DELETE /api/superadmin/notifications/:id
+router.delete('/notifications/:id', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'invalid id' });
+    const { data, error } = await supabase.from('notifications').delete().eq('notification_id', id).select().maybeSingle();
+    if (error) throw error;
+    logAudit('INFO', 'NOTIFICATION_DELETE', { notification_id: id }, req);
+    res.json({ success: true, deleted: !!data });
+  } catch (error) {
+    console.error('❌ Delete notification error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to delete notification' });
   }
 });
 
