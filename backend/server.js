@@ -31,13 +31,31 @@ const notificationRoutes = require('./routes/notifications');
 const wardenRoutes = require('./routes/warden');
 const superadminRoutes = require('./routes/superadmin');
 
-// Basic health check route
+// Frontend entry routes (serve static HTML)
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Hostel Management API Server is running!',
-    version: '1.0.0',
-    timestamp: new Date().toISOString()
-  });
+  // Default to login page on root
+  res.sendFile(path.join(__dirname, '../frontend/login.html'));
+});
+
+// Friendly paths for main pages
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/login.html'));
+});
+
+app.get('/register', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/register.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/admin-dashboard.html'));
+});
+
+app.get('/student', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/student-dashboard.html'));
+});
+
+app.get('/warden', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/warden-dashboard.html'));
 });
 
 // API health check
