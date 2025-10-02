@@ -28,6 +28,8 @@ const authRoutes = require('./routes/auth');
 const allotmentRoutes = require('./routes/allotment');
 const maintenanceRoutes = require('./routes/maintenance');
 const notificationRoutes = require('./routes/notifications');
+const wardenRoutes = require('./routes/warden');
+const superadminRoutes = require('./routes/superadmin');
 
 // Basic health check route
 app.get('/', (req, res) => {
@@ -53,6 +55,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/allotment', allotmentRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/warden', wardenRoutes);
+app.use('/api/superadmin', superadminRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

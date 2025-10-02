@@ -191,6 +191,41 @@ class MaintenanceRequestModel extends BaseModel {
       throw error;
     }
   }
+
+  async findWithDetails(conditions = {}) {
+    try {
+      let qb = supabase.from('maintenance_requests')
+        .select(`
+          *,
+          students!inner(name, reg_no),
+          rooms!inner(room_no, hostel_id, hostels!inner(hostel_name))
+        `);
+      
+      // Apply conditions
+      if (Object.keys(conditions).length > 0) {
+        qb = qb.match(conditions);
+      }
+      
+      qb = qb.order('priority', { ascending: false })
+            .order('created_at', { ascending: true });
+      
+      const { data, error } = await qb;
+      if (error) throw error;
+      
+      // Flatten the nested structure for easier access
+      return (data || []).map(req => ({
+        ...req,
+        student_name: req.students?.name,
+        student_reg_no: req.students?.reg_no,
+        room_no: req.rooms?.room_no,
+        hostel_name: req.rooms?.hostels?.hostel_name
+      }));
+      
+    } catch (error) {
+      console.error('Error finding requests with details:', error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = new MaintenanceRequestModel();

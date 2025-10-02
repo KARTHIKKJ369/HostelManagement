@@ -97,8 +97,21 @@ class BaseModel {
   async update(id, data, idColumn = 'id') {
     try {
       if (supabase) {
-        const { data: updated, error } = await supabase.from(this.tableName).update(data).eq(idColumn, id).select().maybeSingle();
-        if (error) throw error;
+        // Create a clean data object without any potential problematic fields
+        const cleanData = { ...data };
+        
+        // Remove any fields that might cause issues with Supabase
+        delete cleanData.updated_at;
+        delete cleanData.created_at;
+        delete cleanData.id;
+        
+        console.log(`📝 Updating ${this.tableName} ID ${id} with:`, cleanData);
+        
+        const { data: updated, error } = await supabase.from(this.tableName).update(cleanData).eq(idColumn, id).select().maybeSingle();
+        if (error) {
+          console.error(`Supabase update error for ${this.tableName}:`, error);
+          throw error;
+        }
         return updated || null;
       }
 

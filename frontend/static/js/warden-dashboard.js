@@ -89,133 +89,155 @@ const WardenDashboard = {
 
     async loadStats() {
         try {
-            // Mock data for dashboard stats
-            const mockStats = {
-                totalStudents: 85,
-                availableRooms: 12,
-                pendingRequests: 7,
-                todayTasks: 5
-            };
+            console.log('📊 Loading warden dashboard stats...');
+            
+            const response = await API.call('/warden/stats', { method: 'GET' });
+            console.log('✅ Stats loaded:', response);
 
-            document.getElementById('totalStudents').textContent = mockStats.totalStudents;
-            document.getElementById('availableRooms').textContent = mockStats.availableRooms;
-            document.getElementById('pendingRequests').textContent = mockStats.pendingRequests;
-            document.getElementById('todayTasks').textContent = mockStats.todayTasks;
+            document.getElementById('totalStudents').textContent = response.totalStudents || 0;
+            document.getElementById('availableRooms').textContent = response.availableRooms || 0;
+            document.getElementById('pendingRequests').textContent = response.pendingRequests || 0;
+            document.getElementById('todayTasks').textContent = response.todayTasks || 0;
 
         } catch (error) {
-            console.error('Error loading stats:', error);
+            console.error('❌ Error loading stats:', error);
+            // Fallback to showing zeros
+            document.getElementById('totalStudents').textContent = '0';
+            document.getElementById('availableRooms').textContent = '0';
+            document.getElementById('pendingRequests').textContent = '0';
+            document.getElementById('todayTasks').textContent = '0';
         }
     },
 
     async loadRoomSummary() {
         try {
-            const mockRoomData = {
-                totalRooms: 100,
-                occupiedRooms: 88,
-                availableRooms: 12,
-                underMaintenance: 2
-            };
+            console.log('🏠 Loading room summary...');
+            
+            const response = await API.call('/warden/room-summary', { method: 'GET' });
+            console.log('✅ Room summary loaded:', response);
 
             const roomSummaryDiv = document.getElementById('roomSummary');
-            if (roomSummaryDiv) {
+            if (roomSummaryDiv && response.overall) {
+                const { overall } = response;
                 roomSummaryDiv.innerHTML = `
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 1rem 0;">
                         <div style="text-align: center; padding: 1rem; background: #e8f5e8; border-radius: 8px;">
-                            <h4 style="margin: 0; color: #27ae60;">${mockRoomData.occupiedRooms}</h4>
+                            <h4 style="margin: 0; color: #27ae60;">${overall.occupiedRooms || 0}</h4>
                             <p style="margin: 0; font-size: 0.9rem;">Occupied</p>
                         </div>
                         <div style="text-align: center; padding: 1rem; background: #e3f2fd; border-radius: 8px;">
-                            <h4 style="margin: 0; color: #3498db;">${mockRoomData.availableRooms}</h4>
+                            <h4 style="margin: 0; color: #3498db;">${overall.vacantRooms || 0}</h4>
                             <p style="margin: 0; font-size: 0.9rem;">Available</p>
                         </div>
                     </div>
                     <p style="font-size: 0.9rem; color: #666;">
-                        ${mockRoomData.underMaintenance} rooms under maintenance
+                        ${overall.maintenanceRooms || 0} rooms under maintenance | ${overall.occupancyRate || 0}% occupancy
                     </p>
                 `;
             }
 
         } catch (error) {
-            console.error('Error loading room summary:', error);
+            console.error('❌ Error loading room summary:', error);
+            const roomSummaryDiv = document.getElementById('roomSummary');
+            if (roomSummaryDiv) {
+                roomSummaryDiv.innerHTML = '<p style="color: #e74c3c;">Failed to load room data</p>';
+            }
         }
     },
 
     async loadMaintenanceQueue() {
         try {
-            const mockRequests = [
-                { id: 1, student: 'John Doe', room: 'A-101', issue: 'AC not working', priority: 'High', date: '2025-09-17' },
-                { id: 2, student: 'Jane Smith', room: 'B-205', issue: 'Leaky faucet', priority: 'Medium', date: '2025-09-16' },
-                { id: 3, student: 'Mike Johnson', room: 'C-301', issue: 'Light bulb replacement', priority: 'Low', date: '2025-09-15' }
-            ];
+            console.log('🔧 Loading maintenance queue...');
+            
+            const requests = await API.call('/warden/maintenance-queue', { method: 'GET' });
+            console.log('✅ Maintenance queue loaded:', requests);
 
             const maintenanceQueueDiv = document.getElementById('maintenanceQueue');
             if (maintenanceQueueDiv) {
-                const requestsHTML = mockRequests.map(req => `
-                    <div style="padding: 0.75rem; border-left: 3px solid ${req.priority === 'High' ? '#e74c3c' : req.priority === 'Medium' ? '#f39c12' : '#27ae60'}; margin: 0.5rem 0; background: #f8f9fa; border-radius: 4px;">
-                        <div style="display: flex; justify-content: between; align-items: center;">
-                            <div style="flex: 1;">
-                                <strong>${req.issue}</strong>
-                                <div style="font-size: 0.9rem; color: #666;">
-                                    ${req.student} - Room ${req.room} | ${req.priority} Priority
+                if (requests && requests.length > 0) {
+                    const requestsHTML = requests.slice(0, 5).map(req => `
+                        <div style="padding: 0.75rem; border-left: 3px solid ${req.priority === 'High' ? '#e74c3c' : req.priority === 'Medium' ? '#f39c12' : '#27ae60'}; margin: 0.5rem 0; background: #f8f9fa; border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <strong>${req.description || req.category}</strong>
+                                    <div style="font-size: 0.9rem; color: #666;">
+                                        ${req.studentName} - Room ${req.roomNumber} | ${req.priority} Priority
+                                        ${req.daysSinceCreated > 0 ? ` | ${req.daysSinceCreated} days ago` : ' | Today'}
+                                    </div>
                                 </div>
+                                <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="approveRequest(${req.requestId})">
+                                    Approve
+                                </button>
                             </div>
-                            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="approveRequest(${req.id})">
-                                Approve
-                            </button>
                         </div>
-                    </div>
-                `).join('');
-                
-                maintenanceQueueDiv.innerHTML = requestsHTML || '<p style="color: #666; font-style: italic;">No pending requests</p>';
+                    `).join('');
+                    
+                    maintenanceQueueDiv.innerHTML = requestsHTML + 
+                        (requests.length > 5 ? `<p style="text-align: center; margin: 1rem 0;"><button class="btn btn-secondary" onclick="reviewRequests()">View All ${requests.length} Requests</button></p>` : '');
+                } else {
+                    maintenanceQueueDiv.innerHTML = '<p style="color: #666; font-style: italic;">No pending requests</p>';
+                }
             }
 
         } catch (error) {
-            console.error('Error loading maintenance queue:', error);
+            console.error('❌ Error loading maintenance queue:', error);
+            const maintenanceQueueDiv = document.getElementById('maintenanceQueue');
+            if (maintenanceQueueDiv) {
+                maintenanceQueueDiv.innerHTML = '<p style="color: #e74c3c;">Failed to load maintenance requests</p>';
+            }
         }
     },
 
     async loadStudentSummary() {
         try {
-            const mockStudentData = {
-                totalStudents: 85,
-                newThisMonth: 5,
-                graduatingThisMonth: 3,
-                issuesThisWeek: 2
-            };
+            console.log('👥 Loading student summary...');
+            
+            // For now, get student count from stats and show basic info
+            const stats = await API.call('/warden/stats', { method: 'GET' });
+            console.log('✅ Student stats loaded:', stats);
 
             const studentSummaryDiv = document.getElementById('studentSummary');
             if (studentSummaryDiv) {
                 studentSummaryDiv.innerHTML = `
                     <div style="margin: 1rem 0;">
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.9rem;">
-                            <p>✅ <strong>${mockStudentData.newThisMonth}</strong> new students this month</p>
-                            <p>🎓 <strong>${mockStudentData.graduatingThisMonth}</strong> graduating this month</p>
+                            <p>👥 <strong>${stats.totalStudents || 0}</strong> total students</p>
+                            <p>� <strong>${stats.occupiedRooms || 0}</strong> students with rooms</p>
                         </div>
-                        <p style="margin-top: 0.5rem; font-size: 0.9rem; color: ${mockStudentData.issuesThisWeek > 0 ? '#e74c3c' : '#27ae60'};">
-                            📋 <strong>${mockStudentData.issuesThisWeek}</strong> disciplinary issues this week
+                        <p style="margin-top: 0.5rem; font-size: 0.9rem; color: ${stats.pendingRequests > 0 ? '#e74c3c' : '#27ae60'};">
+                            📋 <strong>${stats.pendingRequests || 0}</strong> pending maintenance requests
                         </p>
                     </div>
                 `;
             }
 
         } catch (error) {
-            console.error('Error loading student summary:', error);
+            console.error('❌ Error loading student summary:', error);
+            const studentSummaryDiv = document.getElementById('studentSummary');
+            if (studentSummaryDiv) {
+                studentSummaryDiv.innerHTML = '<p style="color: #e74c3c;">Failed to load student data</p>';
+            }
         }
     },
 
     async loadRecentActivity() {
         try {
-            const mockActivity = [
-                'Approved maintenance request for Room A-101',
-                'Allocated Room B-205 to new student',
-                'Sent announcement about hostel rules',
-                'Completed room inspection for Floor 3',
-                'Reviewed student complaint'
-            ];
-
+            console.log('📋 Loading recent activity...');
+            
             const activityDiv = document.getElementById('recentActivity');
             if (activityDiv) {
-                const activityHTML = mockActivity.map(activity => `
+                // For now, show a summary of current status
+                const stats = await API.call('/warden/stats', { method: 'GET' });
+                
+                const activities = [
+                    `${stats.totalStudents || 0} students currently in system`,
+                    `${stats.occupiedRooms || 0} rooms currently occupied`,
+                    `${stats.availableRooms || 0} rooms available for allocation`,
+                    `${stats.pendingRequests || 0} maintenance requests pending review`,
+                    `${stats.pendingApplications || 0} allotment applications pending approval`
+                ];
+                
+                const activityHTML = activities.map(activity => `
                     <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee;">
                         <span style="color: #666; font-size: 0.9rem;">• ${activity}</span>
                     </div>
@@ -225,71 +247,87 @@ const WardenDashboard = {
             }
 
         } catch (error) {
-            console.error('Error loading recent activity:', error);
+            console.error('❌ Error loading recent activity:', error);
+            const activityDiv = document.getElementById('recentActivity');
+            if (activityDiv) {
+                activityDiv.innerHTML = '<p style="color: #e74c3c;">Failed to load activity data</p>';
+            }
         }
     },
 
     async loadPendingApprovals() {
         try {
-            const mockApprovals = [
-                { type: 'Room Change Request', student: 'Sarah Wilson', details: 'A-101 to B-202' },
-                { type: 'Late Entry Permission', student: 'David Brown', details: 'Until 11:30 PM' },
-                { type: 'Guest Visit Request', student: 'Emma Davis', details: 'Parents visit on weekend' }
-            ];
+            console.log('📋 Loading pending approvals...');
+            
+            const applications = await API.call('/warden/pending-applications', { method: 'GET' });
+            console.log('✅ Pending applications loaded:', applications);
 
             const approvalsDiv = document.getElementById('pendingApprovals');
             if (approvalsDiv) {
-                const approvalsHTML = mockApprovals.map((approval, index) => `
-                    <div style="padding: 0.75rem; border: 1px solid #e3f2fd; margin: 0.5rem 0; background: #f8f9fa; border-radius: 4px;">
-                        <div style="display: flex; justify-content: between; align-items: center;">
-                            <div style="flex: 1;">
-                                <strong>${approval.type}</strong>
-                                <div style="font-size: 0.9rem; color: #666;">
-                                    ${approval.student} - ${approval.details}
+                if (applications && applications.length > 0) {
+                    const approvalsHTML = applications.slice(0, 5).map((app, index) => `
+                        <div style="padding: 0.75rem; border: 1px solid #e3f2fd; margin: 0.5rem 0; background: #f8f9fa; border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <strong>Allotment Application</strong>
+                                    <div style="font-size: 0.9rem; color: #666;">
+                                        ${app.course} - Year ${app.academicYear} | ${app.roomTypePreference} room
+                                        ${app.daysSinceApplied > 0 ? ` | Applied ${app.daysSinceApplied} days ago` : ' | Applied today'}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="approveApplication('${app.applicationId}')">
+                                        Approve
+                                    </button>
+                                    <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="rejectApplication('${app.applicationId}')">
+                                        Reject
+                                    </button>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="approveItem(${index})">
-                                    Approve
-                                </button>
-                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="rejectItem(${index})">
-                                    Reject
-                                </button>
-                            </div>
                         </div>
-                    </div>
-                `).join('');
-                
-                approvalsDiv.innerHTML = approvalsHTML || '<p style="color: #666; font-style: italic;">No pending approvals</p>';
+                    `).join('');
+                    
+                    approvalsDiv.innerHTML = approvalsHTML + 
+                        (applications.length > 5 ? `<p style="text-align: center; margin: 1rem 0;"><button class="btn btn-secondary" onclick="reviewApprovals()">View All ${applications.length} Applications</button></p>` : '');
+                } else {
+                    approvalsDiv.innerHTML = '<p style="color: #666; font-style: italic;">No pending applications</p>';
+                }
             }
 
         } catch (error) {
-            console.error('Error loading pending approvals:', error);
+            console.error('❌ Error loading pending approvals:', error);
+            const approvalsDiv = document.getElementById('pendingApprovals');
+            if (approvalsDiv) {
+                approvalsDiv.innerHTML = '<p style="color: #e74c3c;">Failed to load pending applications</p>';
+            }
         }
     },
 
     async loadRecentAnnouncements() {
         try {
-            const mockAnnouncements = [
-                { title: 'Hostel Fee Due Date', date: '2025-09-15' },
-                { title: 'New Visiting Hours', date: '2025-09-12' },
-                { title: 'Maintenance Schedule', date: '2025-09-10' }
-            ];
-
+            // TODO: Implement announcements API endpoint
+            // For now, show placeholder message
+            console.log('📢 Loading announcements (placeholder)...');
+            
             const announcementsDiv = document.getElementById('recentAnnouncements');
             if (announcementsDiv) {
-                const announcementsHTML = mockAnnouncements.map(announcement => `
-                    <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee;">
-                        <strong style="font-size: 0.9rem;">${announcement.title}</strong>
-                        <div style="font-size: 0.8rem; color: #666;">${announcement.date}</div>
+                announcementsDiv.innerHTML = `
+                    <div style="padding: 1rem; text-align: center; color: #666; font-style: italic; background: #f8f9fa; border-radius: 4px;">
+                        <i class="fas fa-bullhorn" style="margin-bottom: 0.5rem; display: block; font-size: 1.5rem; color: #ccc;"></i>
+                        Announcements system coming soon!
+                        <div style="font-size: 0.8rem; margin-top: 0.25rem;">
+                            This will show hostel announcements and notices.
+                        </div>
                     </div>
-                `).join('');
-                
-                announcementsDiv.innerHTML = announcementsHTML || '<p style="color: #666; font-style: italic;">No recent announcements</p>';
+                `;
             }
 
         } catch (error) {
             console.error('Error loading recent announcements:', error);
+            const announcementsDiv = document.getElementById('recentAnnouncements');
+            if (announcementsDiv) {
+                announcementsDiv.innerHTML = '<p style="color: #dc3545; font-style: italic;">Error loading announcements</p>';
+            }
         }
     }
 };
@@ -363,8 +401,76 @@ function reviewApprovals() {
     UIHelper.showAlert('Approval review interface coming soon!', 'info');
 }
 
-function approveRequest(requestId) {
-    UIHelper.showAlert(`Maintenance request ${requestId} approved!`, 'success');
+async function approveRequest(requestId) {
+    try {
+        console.log(`🔧 Approving maintenance request ${requestId}...`);
+        
+        const response = await API.call(`/warden/approve-maintenance/${requestId}`, {
+            method: 'POST'
+        });
+        
+        if (response.success) {
+            UIHelper.showAlert('Maintenance request approved successfully!', 'success');
+            // Refresh the maintenance queue and stats
+            await WardenDashboard.loadMaintenanceQueue();
+            await WardenDashboard.loadStats();
+        } else {
+            UIHelper.showAlert('Failed to approve maintenance request', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error approving maintenance request:', error);
+        UIHelper.showAlert('Error approving maintenance request', 'error');
+    }
+}
+
+async function approveApplication(applicationId) {
+    try {
+        console.log(`📋 Approving application ${applicationId}...`);
+        
+        const response = await API.call(`/warden/approve-application/${applicationId}`, {
+            method: 'POST'
+        });
+        
+        if (response.success) {
+            UIHelper.showAlert('Application approved successfully!', 'success');
+            // Refresh the pending approvals and stats
+            await WardenDashboard.loadPendingApprovals();
+            await WardenDashboard.loadStats();
+        } else {
+            UIHelper.showAlert('Failed to approve application', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error approving application:', error);
+        UIHelper.showAlert('Error approving application', 'error');
+    }
+}
+
+async function rejectApplication(applicationId) {
+    try {
+        const reason = prompt('Please provide a reason for rejection (optional):') || '';
+        
+        console.log(`📋 Rejecting application ${applicationId}...`);
+        
+        const response = await API.call(`/warden/reject-application/${applicationId}`, {
+            method: 'POST',
+            body: JSON.stringify({ reason })
+        });
+        
+        if (response.success) {
+            UIHelper.showAlert('Application rejected successfully!', 'info');
+            // Refresh the pending approvals and stats
+            await WardenDashboard.loadPendingApprovals();
+            await WardenDashboard.loadStats();
+        } else {
+            UIHelper.showAlert('Failed to reject application', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error rejecting application:', error);
+        UIHelper.showAlert('Error rejecting application', 'error');
+    }
 }
 
 function approveItem(itemIndex) {

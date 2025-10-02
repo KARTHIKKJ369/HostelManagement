@@ -14,8 +14,17 @@ router.get('/status', authenticateToken, async (req, res) => {
         const userId = req.user.userId || req.user.id;
         console.log('🔍 Checking allotment status for user:', userId);
         
+        // First get the student record to get student_id
+        const { StudentModel } = require('../models');
+        const student = await StudentModel.findByUserId(userId);
+        if (!student) {
+            return res.status(404).json({ message: 'Student record not found' });
+        }
+        
+        console.log('👤 Found student:', student.student_id);
+        
     // Check if student has an active room allocation
-    const allocation = await RoomAllotmentModel.findActiveByStudent(userId);
+    const allocation = await RoomAllotmentModel.findActiveByStudent(student.student_id);
         
         if (allocation) {
             return res.json({

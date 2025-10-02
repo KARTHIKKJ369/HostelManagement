@@ -116,6 +116,40 @@ class HostelModel extends BaseModel {
       throw error;
     }
   }
+
+  async findAllWithDetails() {
+    try {
+      const { data, error } = await supabase
+        .from('hostels')
+        .select(`
+          *,
+          warden:users(username, email, phone),
+          rooms(room_id, room_no, status, capacity)
+        `)
+        .order('hostel_name', { ascending: true });
+      
+      if (error) throw error;
+      
+      // Transform the data to flatten warden details and add room counts
+      return (data || []).map(hostel => {
+        const rooms = hostel.rooms || [];
+        return {
+          ...hostel,
+          warden_username: hostel.warden?.username || null,
+          warden_email: hostel.warden?.email || null,
+          warden_phone: hostel.warden?.phone || null,
+          total_rooms: rooms.length,
+          occupied_rooms: rooms.filter(r => r.status === 'Occupied').length,
+          vacant_rooms: rooms.filter(r => r.status === 'Vacant').length,
+          maintenance_rooms: rooms.filter(r => r.status === 'Under Maintenance').length,
+          rooms: rooms
+        };
+      });
+    } catch (error) {
+      console.error('Error finding hostels with details:', error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = new HostelModel();

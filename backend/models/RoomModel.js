@@ -131,6 +131,23 @@ class RoomModel extends BaseModel {
       throw error;
     }
   }
+
+  async findByRoomNoAndHostel(roomNo, hostelId) {
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('room_no', roomNo)
+        .eq('hostel_id', hostelId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data || null;
+    } catch (error) {
+      console.error('Error finding room by number and hostel:', error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = new RoomModel();

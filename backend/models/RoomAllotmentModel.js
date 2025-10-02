@@ -97,7 +97,24 @@ class RoomAllotmentModel extends BaseModel {
 
   async findActiveByStudent(studentId) {
     try {
-      const { data, error } = await supabase.from('room_allotments').select('*, rooms(room_no, capacity), hostels:rooms!inner(hostel_id)(hostel_name, hostel_type, location)').eq('student_id', studentId).eq('status', 'Active').maybeSingle();
+      const { data, error } = await supabase
+        .from('room_allotments')
+        .select(`
+          *,
+          rooms (
+            room_no,
+            capacity,
+            hostels (
+              hostel_name,
+              hostel_type,
+              location
+            )
+          )
+        `)
+        .eq('student_id', studentId)
+        .eq('status', 'Active')
+        .maybeSingle();
+      
       if (error) throw error;
       return data || null;
     } catch (error) {
