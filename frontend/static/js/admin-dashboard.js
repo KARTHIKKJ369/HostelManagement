@@ -1827,8 +1827,8 @@ function showCreateFee() {
                     <div class="form-group" style="flex: 1 1 50%">
                         <label class="form-label">Student (Reg No)</label>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
-                            <input type="text" id="studentSearch" class="form-input" placeholder="Search reg no or name" oninput="searchStudentsForFee()" />
-                            <select id="studentSelect" name="student_id" class="form-select" required style="min-width: 240px;">
+                            <input type="text" id="studentSearch" class="form-input" placeholder="Search reg no or name" oninput="searchStudentsForFee()" style="flex:1; min-width: 220px;" />
+                            <select id="studentSelect" name="student_id" class="form-select" required style="flex:0 0 260px; min-width: 240px;">
                                 <option value="" disabled selected>Search to load students…</option>
                             </select>
                         </div>
