@@ -2090,55 +2090,30 @@ function updateAllotmentDisplay(allotmentData) {
         return;
     }
     
+    const roomInfoCard = document.getElementById('roomInfoCard');
     if (allotmentData.isAllocated) {
-        console.log('✅ Student is allocated - hiding allotment card, showing maintenance');
-        // Student is already allocated - hide allotment card and show room details
+        console.log('✅ Student is allocated - show room info, hide allotment card');
         allotmentCard.style.display = 'none';
-        
-        // Show maintenance card for allocated students
-        if (maintenanceCard) {
-            maintenanceCard.style.display = 'block';
-        }
-        
-        // Update room information
-        document.getElementById('detailRoomNumber').textContent = allotmentData.roomNumber || 'Not Available';
-        document.getElementById('detailHostelName').textContent = allotmentData.hostelName || 'Not Available';
-        document.getElementById('roomType').textContent = allotmentData.roomType || '---';
-        document.getElementById('occupancy').textContent = allotmentData.occupancy || '---';
-        document.getElementById('floor').textContent = allotmentData.floor || '---';
-        
-        // Update quick stats
-        document.getElementById('roomNumber').textContent = allotmentData.roomNumber || '---';
-        document.getElementById('hostelName').textContent = allotmentData.hostelName || '---';
-        
+        if (roomInfoCard) roomInfoCard.style.display = 'block';
+        if (maintenanceCard) maintenanceCard.style.display = 'block';
+
+        // Update room information safely
+        const safeSet = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value ?? '---';
+        };
+        safeSet('detailRoomNumber', allotmentData.roomNumber || 'Not Assigned');
+        safeSet('detailHostelName', allotmentData.hostelName || '---');
+        // roomType/occupancy/floor may not be present from /status API; leave as-is if not provided
+        if (allotmentData.roomType) safeSet('roomType', allotmentData.roomType);
+        if (allotmentData.occupancy) safeSet('occupancy', allotmentData.occupancy);
+        if (allotmentData.floor) safeSet('floor', allotmentData.floor);
     } else {
-        console.log('📝 Student is not allocated - showing allotment card, hiding maintenance');
-        // Student is not allocated - show allotment card
+        console.log('📝 Student not allocated - show allotment card');
         allotmentCard.style.display = 'block';
-        
-        // Hide maintenance card for non-allocated students
-        if (maintenanceCard) {
-            maintenanceCard.style.display = 'none';
-        }
-        
-        if (allotmentData.applicationStatus) {
-            console.log('📋 Application status found:', allotmentData.applicationStatus);
-            // Application is in progress
-            const statusText = allotmentData.applicationStatus === 'pending' ? 'Application Pending' : 
-                              allotmentData.applicationStatus === 'processing' ? 'Under Review' : 'Not Allocated';
-            const statusClass = allotmentData.applicationStatus === 'pending' ? 'status-processing' : 'status-pending';
-            
-            const statusBadge = allotmentCard.querySelector('.status-badge');
-            const cardText = allotmentCard.querySelector('p');
-            const primaryBtn = allotmentCard.querySelector('.btn-primary');
-            
-            if (statusBadge) statusBadge.textContent = statusText;
-            if (statusBadge) statusBadge.className = `status-badge ${statusClass}`;
-            if (cardText) cardText.textContent = 'Your allotment application is being processed.';
-            if (primaryBtn) primaryBtn.textContent = 'View Application Status';
-        } else {
-            console.log('📝 No application status - showing default allotment card');
-        }
+        if (roomInfoCard) roomInfoCard.style.display = 'none';
+        if (maintenanceCard) maintenanceCard.style.display = 'none';
+        // Optional: could show application status text on the card in future
     }
 }
 

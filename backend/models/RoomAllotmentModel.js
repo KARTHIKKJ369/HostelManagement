@@ -50,7 +50,22 @@ class RoomAllotmentModel extends BaseModel {
       if (!allotRes.data) throw new Error('Active allotment not found');
       const allotment = allotRes.data;
 
-      const updateRes = await supabase.from('room_allotments').update({ status: 'Vacated', vacated_date: vacatedDate || new Date().toISOString() }).eq('allotment_id', allotmentId).select().maybeSingle();
+      // Update the allotment - don't try to select the result to avoid updated_at errors
+      const updateRes = await supabase.from('room_allotments').update({ 
+        status: 'Vacated', 
+        vacated_date: vacatedDate || new Date().toISOString().split('T')[0]
+      }).eq('allotment_id', allotmentId);
+      
+      if (updateRes.error) throw updateRes.error;
+      
+      console.log(`✅ Successfully updated allotment ${allotmentId} to Vacated status`);
+      
+      // Create a simple response object instead of querying back
+      const updatedAllotment = {
+        allotment_id: allotmentId,
+        status: 'Vacated',
+        vacated_date: vacatedDate || new Date().toISOString().split('T')[0]
+      };
       if (updateRes.error) throw updateRes.error;
 
       // Update room status
@@ -61,7 +76,7 @@ class RoomAllotmentModel extends BaseModel {
         await supabase.from('rooms').update({ status: 'Vacant' }).eq('room_id', allotment.room_id);
       }
 
-      return updateRes.data;
+      return updatedAllotment;
     } catch (error) {
       console.error('Error vacating room:', error.message);
       throw error;

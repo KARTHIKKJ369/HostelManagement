@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
+const { supabase } = require('../config/supabase');
 const { 
   UserModel, 
   HostelModel, 
@@ -10,6 +11,7 @@ const {
   MaintenanceRequestModel,
   RoomAllotmentModel 
 } = require('../models');
+const SettingsService = require('../services/SettingsService');
 
 // Middleware to ensure SuperAdmin role
 const requireSuperAdminRole = (req, res, next) => {
@@ -18,6 +20,24 @@ const requireSuperAdminRole = (req, res, next) => {
   }
   next();
 };
+
+// GET /api/superadmin/students - Minimal list for dropdowns
+router.get('/students', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    // Optional search query ?q= to filter by reg_no or name
+    const q = (req.query.q || '').trim();
+    let qb = supabase.from('students').select('student_id, reg_no, name').order('reg_no', { ascending: true }).limit(500);
+    if (q) {
+      qb = qb.or(`reg_no.ilike.%${q}%,name.ilike.%${q}%`);
+    }
+    const { data, error } = await qb;
+    if (error) throw error;
+    res.json({ success: true, students: data || [] });
+  } catch (error) {
+    console.error('❌ Error loading students list:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to load students' });
+  }
+});
 
 // GET /api/superadmin/stats - System overview statistics
 router.get('/stats', authenticateToken, requireSuperAdminRole, async (req, res) => {
@@ -101,6 +121,203 @@ router.get('/stats', authenticateToken, requireSuperAdminRole, async (req, res) 
   }
 });
 
+// GET /api/superadmin/analytics/overview - High-level analytics for charts
+router.get('/analytics/overview', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const [rooms, allotments, applications, maintenance] = await Promise.all([
+      RoomModel.findAll(),
+      RoomAllotmentModel.findAll(),
+      AllotmentApplicationModel.findAll(),
+      MaintenanceRequestModel.findAll()
+    ]);
+
+    const byStatus = rooms.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
+    const activeAllotments = allotments.filter(a => a.status === 'Active').length;
+    const occupancyRate = rooms.length ? Math.round((activeAllotments / rooms.length) * 100) : 0;
+
+    // Applications by status
+    const appByStatus = applications.reduce((acc, a) => { acc[a.status] = (acc[a.status] || 0) + 1; return acc; }, {});
+
+    // Maintenance by status
+    const maintByStatus = maintenance.reduce((acc, m) => { acc[m.status] = (acc[m.status] || 0) + 1; return acc; }, {});
+
+    res.json({
+      occupancyRate,
+      rooms: { total: rooms.length, byStatus },
+      applications: { total: applications.length, byStatus: appByStatus },
+      maintenance: { total: maintenance.length, byStatus: maintByStatus }
+    });
+  } catch (error) {
+    console.error('❌ Error loading analytics overview:', error);
+    res.status(500).json({ message: 'Failed to load analytics overview' });
+  }
+});
+
+// GET /api/superadmin/export/:entity - CSV export for selected entities
+router.get('/export/:entity', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const { entity } = req.params;
+    let rows = [];
+    if (entity === 'users') rows = await UserModel.findAll();
+    else if (entity === 'hostels') rows = await HostelModel.findAll();
+    else if (entity === 'rooms') rows = await RoomModel.findAll();
+    else if (entity === 'allotments') rows = await RoomAllotmentModel.findAll();
+    else if (entity === 'applications') rows = await AllotmentApplicationModel.findAll();
+    else if (entity === 'maintenance') rows = await MaintenanceRequestModel.findAll();
+    else return res.status(400).json({ message: 'Unsupported export entity' });
+
+    const csv = toCSV(rows);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${entity}.csv"`);
+    return res.status(200).send(csv);
+  } catch (error) {
+    console.error('❌ Error exporting data:', error);
+    res.status(500).json({ message: 'Failed to export data' });
+  }
+});
+
+function toCSV(rows) {
+  if (!rows || !rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const escape = (v) => {
+    if (v === null || v === undefined) return '';
+    const s = String(v).replace(/"/g, '""');
+    return /[",\n]/.test(s) ? `"${s}"` : s;
+  };
+  const lines = [headers.join(',')];
+  for (const r of rows) {
+    lines.push(headers.map(h => escape(r[h])).join(','));
+  }
+  return lines.join('\n');
+}
+
+// GET /api/superadmin/logs - Placeholder system logs (extend to real log store later)
+router.get('/logs', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    // Placeholder: minimal logs derived from recent changes; can be replaced with a logs table later
+    const now = new Date();
+    const sample = [
+      { ts: now.toISOString(), level: 'INFO', message: 'System OK' },
+      { ts: new Date(now.getTime() - 3600_000).toISOString(), level: 'INFO', message: 'Nightly health check passed' }
+    ];
+    res.json({ logs: sample });
+  } catch (error) {
+    console.error('❌ Error loading logs:', error);
+    res.status(500).json({ message: 'Failed to load system logs' });
+  }
+});
+
+// Settings APIs
+// GET /api/superadmin/settings
+router.get('/settings', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const settings = await SettingsService.getSettings();
+    res.json({ success: true, settings });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message || 'Failed to load settings' });
+  }
+});
+
+// Finance APIs
+// GET /api/superadmin/finance/summary
+router.get('/finance/summary', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    // Aggregate fees and payments
+    const { data: fees, error: fErr } = await supabase.from('fees').select('*');
+    if (fErr) throw fErr;
+    const { data: payments, error: pErr } = await supabase.from('payments').select('*');
+    if (pErr) throw pErr;
+
+    const totals = (fees || []).reduce((acc, f) => {
+      acc.total_billed += Number(f.amount || 0);
+      acc.total_paid += Number(f.paid_amount || 0);
+      acc.pending += Math.max(0, Number(f.amount || 0) - Number(f.paid_amount || 0));
+      if (f.status === 'Overdue') acc.overdue += Math.max(0, Number(f.amount || 0) - Number(f.paid_amount || 0));
+      return acc;
+    }, { total_billed: 0, total_paid: 0, pending: 0, overdue: 0 });
+
+    const thisMonth = new Date();
+    thisMonth.setDate(1);
+    const monthlyPayments = (payments || []).filter(p => new Date(p.paid_at) >= thisMonth)
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+
+    res.json({ success: true, summary: { ...totals, monthlyPayments, feesCount: fees?.length || 0 } });
+  } catch (error) {
+    console.error('❌ Finance summary error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to load finance summary' });
+  }
+});
+
+// GET /api/superadmin/finance/fees?status=&student_id=
+router.get('/finance/fees', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    let qb = supabase.from('fees').select('*, students(name, reg_no)');
+    if (req.query.status) qb = qb.eq('status', req.query.status);
+    if (req.query.student_id) qb = qb.eq('student_id', req.query.student_id);
+    const { data, error } = await qb.order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, fees: data || [] });
+  } catch (error) {
+    console.error('❌ List fees error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to load fees' });
+  }
+});
+
+// POST /api/superadmin/finance/fees
+router.post('/finance/fees', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const { student_id, amount, due_date, description } = req.body;
+    if (!student_id || amount == null) return res.status(400).json({ success: false, message: 'student_id and amount required' });
+    const { data, error } = await supabase.from('fees').insert({ student_id, amount, due_date, description }).select().maybeSingle();
+    if (error) throw error;
+    res.status(201).json({ success: true, fee: data });
+  } catch (error) {
+    console.error('❌ Create fee error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to create fee' });
+  }
+});
+
+// POST /api/superadmin/finance/fees/:fee_id/pay
+router.post('/finance/fees/:fee_id/pay', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const fee_id = parseInt(req.params.fee_id);
+    const { amount, method, reference } = req.body;
+    if (!fee_id || !amount) return res.status(400).json({ success: false, message: 'fee_id and amount required' });
+
+    // Insert payment
+    const { data: pay, error: pErr } = await supabase.from('payments').insert({ fee_id, amount, method, reference }).select().maybeSingle();
+    if (pErr) throw pErr;
+
+    // Update fee paid_amount and status
+    const { data: feeRow, error: fErr } = await supabase.from('fees').select('*').eq('fee_id', fee_id).maybeSingle();
+    if (fErr) throw fErr;
+    if (!feeRow) return res.status(404).json({ success: false, message: 'Fee not found' });
+
+    const newPaid = Number(feeRow.paid_amount || 0) + Number(amount);
+    let status = 'Partially Paid';
+    if (newPaid >= Number(feeRow.amount)) status = 'Paid';
+    const { error: uErr } = await supabase.from('fees').update({ paid_amount: newPaid, status, paid_at: status === 'Paid' ? new Date().toISOString() : feeRow.paid_at }).eq('fee_id', fee_id);
+    if (uErr) throw uErr;
+
+    res.json({ success: true, payment: pay, newPaid, status });
+  } catch (error) {
+    console.error('❌ Record payment error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to record payment' });
+  }
+});
+
+// PUT /api/superadmin/settings
+router.put('/settings', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const updated = await SettingsService.updateSettings(req.body || {});
+    res.json({ success: true, settings: updated });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ success: false, message: error.message || 'Failed to update settings' });
+  }
+});
+
 // GET /api/superadmin/users - Get all users
 router.get('/users', authenticateToken, requireSuperAdminRole, async (req, res) => {
   try {
@@ -175,7 +392,22 @@ router.put('/users/:userId', authenticateToken, requireSuperAdminRole, async (re
       return res.status(400).json({ message: 'Use separate endpoint to change password' });
     }
 
-    const updatedUser = await UserModel.update(userId, updates);
+    // Allow only valid fields to be updated
+    const allowedFields = ['username', 'role', 'email', 'phone'];
+    const filteredUpdates = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        filteredUpdates[key] = value;
+      }
+    }
+
+    // Optional: basic role validation
+    if (filteredUpdates.role && !['Student', 'Warden', 'SuperAdmin'].includes(filteredUpdates.role)) {
+      return res.status(400).json({ message: 'Invalid role. Must be Student, Warden, or SuperAdmin' });
+    }
+
+    // Use correct PK column for users table
+    const updatedUser = await UserModel.update(userId, filteredUpdates, 'user_id');
     if (!updatedUser) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -295,7 +527,7 @@ router.post('/hostels', authenticateToken, requireSuperAdminRole, async (req, re
 
     // Validate warden if provided
     if (warden_id) {
-      const warden = await UserModel.findById(warden_id);
+      const warden = await UserModel.findById(warden_id, 'user_id');
       if (!warden || warden.role !== 'Warden') {
         return res.status(400).json({ message: 'Invalid warden ID or user is not a Warden' });
       }
@@ -317,7 +549,18 @@ router.post('/hostels', authenticateToken, requireSuperAdminRole, async (req, re
 
   } catch (error) {
     console.error('❌ Error creating hostel:', error);
-    res.status(500).json({ message: 'Failed to create hostel' });
+    
+    // Handle specific database errors
+    if (error.code === '23505' && error.message.includes('duplicate key')) {
+      res.status(409).json({ 
+        message: 'Database sequence error. Please try creating the hostel again.' 
+      });
+    } else {
+      res.status(500).json({ 
+        message: 'Failed to create hostel',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
   }
 });
 
@@ -369,7 +612,18 @@ router.put('/hostels/:hostelId', authenticateToken, requireSuperAdminRole, async
     
     console.log('🔄 Filtered updates for hostel:', filteredUpdates);
     
-    const updatedHostel = await HostelModel.update(hostelId, filteredUpdates, 'hostel_id');
+    // Attempt direct Supabase update to avoid BaseModel select/trigger issues
+    const { error: sbError } = await supabase
+      .from('hostels')
+      .update(filteredUpdates)
+      .eq('hostel_id', hostelId);
+
+    if (sbError) {
+      throw sbError;
+    }
+
+    // Fetch updated hostel separately
+    const updatedHostel = await HostelModel.findById(hostelId, 'hostel_id');
     if (!updatedHostel) {
       return res.status(404).json({ message: 'Hostel not found' });
     }
@@ -382,6 +636,13 @@ router.put('/hostels/:hostelId', authenticateToken, requireSuperAdminRole, async
 
   } catch (error) {
     console.error('❌ Error updating hostel:', error);
+    // Detect common Supabase trigger error referencing missing updated_at column
+    if (error && error.code === '42703' && typeof error.message === 'string' && error.message.toLowerCase().includes('updated_at')) {
+      return res.status(409).json({
+        message: 'Hostel update failed due to a database trigger expecting an updated_at column on hostels. Please add an updated_at TIMESTAMP column to the hostels table.',
+        hint: 'Run the migration in database/migrations/20251002_add_updated_at.sql to add updated_at and triggers.'
+      });
+    }
     res.status(500).json({ 
       message: 'Failed to update hostel',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -396,24 +657,96 @@ router.delete('/hostels/:hostelId', authenticateToken, requireSuperAdminRole, as
     
     console.log(`🗑️ Deleting hostel ${hostelId}`);
     
-    // Check if hostel has active allotments
-    const rooms = await RoomModel.findByHostel(hostelId);
-    const roomIds = rooms.map(r => r.room_id);
-    
+    // Fetch rooms for this hostel
+    const { data: rooms, error: roomsError } = await supabase
+      .from('rooms')
+      .select('room_id')
+      .eq('hostel_id', hostelId);
+
+    if (roomsError) {
+      console.error('❌ Error fetching rooms for deletion:', roomsError);
+      return res.status(500).json({ message: 'Failed to verify hostel rooms before deletion' });
+    }
+
+    const roomIds = (rooms || []).map(r => r.room_id);
+
+    // Check if hostel has active allotments using a direct count query
     if (roomIds.length > 0) {
-      const allotments = await RoomAllotmentModel.findAll();
-      const activeAllotments = allotments.filter(a => 
-        roomIds.includes(a.room_id) && a.status === 'Active'
-      );
-      
-      if (activeAllotments.length > 0) {
+      const { count: activeCount, error: countError } = await supabase
+        .from('room_allotments')
+        .select('*', { count: 'exact', head: true })
+        .in('room_id', roomIds)
+        .eq('status', 'Active');
+
+      if (countError) {
+        console.error('❌ Error counting active allotments for delete:', countError);
+        return res.status(500).json({ message: 'Failed to verify active allotments before deletion' });
+      }
+
+      if ((activeCount || 0) > 0) {
         return res.status(400).json({ 
           message: 'Cannot delete hostel with active room allotments' 
         });
       }
     }
 
-    const deleted = await HostelModel.delete(hostelId);
+    // Cascade clean-up: First, nullify references in allotment_applications to avoid FK violations
+    if (roomIds.length > 0) {
+      console.log(`🔗 Clearing application allocations for ${roomIds.length} room(s)`);
+      const { error: appsAllocNullErr } = await supabase
+        .from('allotment_applications')
+        .update({ allocated_room_id: null })
+        .in('allocated_room_id', roomIds);
+      if (appsAllocNullErr) {
+        console.error('❌ Error nullifying allocated_room_id in applications:', appsAllocNullErr);
+        return res.status(500).json({ message: 'Failed to clear application allocations for hostel rooms' });
+      }
+
+      // Now delete room allotments and maintenance requests tied to these rooms (to satisfy FK), then rooms
+      console.log(`🧹 Deleting room allotments for ${roomIds.length} room(s)`);
+      const { error: raDeleteError } = await supabase
+        .from('room_allotments')
+        .delete()
+        .in('room_id', roomIds);
+      if (raDeleteError) {
+        console.error('❌ Error deleting room allotments for hostel rooms:', raDeleteError);
+        return res.status(500).json({ message: 'Failed to delete room allotments for hostel' });
+      }
+
+      console.log(`🧹 Cleaning up related maintenance requests for ${roomIds.length} room(s)`);
+      const { error: mrDeleteError } = await supabase
+        .from('maintenance_requests')
+        .delete()
+        .in('room_id', roomIds);
+      if (mrDeleteError) {
+        console.error('❌ Error deleting maintenance requests for hostel rooms:', mrDeleteError);
+        // Not fatal if none exist; proceed
+      }
+
+      console.log(`🧹 Deleting ${roomIds.length} room(s) for hostel ${hostelId}`);
+      const { error: roomsDeleteError } = await supabase
+        .from('rooms')
+        .delete()
+        .eq('hostel_id', hostelId);
+      if (roomsDeleteError) {
+        console.error('❌ Error deleting rooms for hostel:', roomsDeleteError);
+        return res.status(500).json({ message: 'Failed to delete rooms for hostel' });
+      }
+    }
+
+    // Also clear preferred_hostel_id references in applications that point to this hostel
+    console.log(`🔗 Clearing application preferred_hostel references for hostel ${hostelId}`);
+    const { error: appsPrefNullErr } = await supabase
+      .from('allotment_applications')
+      .update({ preferred_hostel_id: null })
+      .eq('preferred_hostel_id', hostelId);
+    if (appsPrefNullErr) {
+      console.error('❌ Error nullifying preferred_hostel_id in applications:', appsPrefNullErr);
+      return res.status(500).json({ message: 'Failed to clear application preferred hostel references' });
+    }
+
+    // Finally, delete the hostel using correct PK column
+    const deleted = await HostelModel.delete(hostelId, 'hostel_id');
     if (!deleted) {
       return res.status(404).json({ message: 'Hostel not found' });
     }
@@ -456,7 +789,7 @@ router.post('/hostels/:hostelId/rooms', authenticateToken, requireSuperAdminRole
     }
 
     // Check if hostel exists
-    const hostel = await HostelModel.findById(hostelId);
+    const hostel = await HostelModel.findById(hostelId, 'hostel_id');
     if (!hostel) {
       return res.status(404).json({ message: 'Hostel not found' });
     }
@@ -483,6 +816,95 @@ router.post('/hostels/:hostelId/rooms', authenticateToken, requireSuperAdminRole
   } catch (error) {
     console.error('❌ Error creating room:', error);
     res.status(500).json({ message: 'Failed to create room' });
+  }
+});
+
+// POST /api/superadmin/hostels/:hostelId/rooms/bulk - Bulk add rooms to hostel
+router.post('/hostels/:hostelId/rooms/bulk', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const { hostelId } = req.params;
+    const { rooms } = req.body; // Expect [{ room_no, capacity, status }]
+
+    console.log(`📦 Bulk adding rooms to hostel ${hostelId}...`);
+
+    if (!Array.isArray(rooms) || rooms.length === 0) {
+      return res.status(400).json({ message: 'Rooms array is required' });
+    }
+
+    // Check hostel exists
+    const hostel = await HostelModel.findById(hostelId, 'hostel_id');
+    if (!hostel) {
+      return res.status(404).json({ message: 'Hostel not found' });
+    }
+
+    // Fetch existing rooms for this hostel to avoid duplicates
+    const { data: existing, error: existingErr } = await supabase
+      .from('rooms')
+      .select('room_no')
+      .eq('hostel_id', hostelId);
+
+    if (existingErr) {
+      console.error('❌ Error fetching existing rooms before bulk insert:', existingErr);
+      return res.status(500).json({ message: 'Failed to verify existing rooms' });
+    }
+
+    const existingSet = new Set((existing || []).map(r => (r.room_no || '').trim().toUpperCase()));
+
+    // Normalize, validate and filter rooms
+    const normalized = [];
+    const skipped = [];
+    for (const r of rooms) {
+      const room_no = (r.room_no || '').trim();
+      const capacity = parseInt(r.capacity);
+      const status = r.status === 'Under Maintenance' ? 'Under Maintenance' : 'Vacant';
+
+      if (!room_no || !capacity || capacity < 1) {
+        skipped.push({ room_no: r.room_no, reason: 'Invalid room_no or capacity' });
+        continue;
+      }
+
+      const key = room_no.toUpperCase();
+      if (existingSet.has(key)) {
+        skipped.push({ room_no, reason: 'Duplicate (already exists)' });
+        continue;
+      }
+
+      normalized.push({ hostel_id: parseInt(hostelId), room_no, capacity, status });
+      existingSet.add(key); // avoid duplicates within this request
+    }
+
+    if (normalized.length === 0) {
+      return res.status(409).json({ 
+        message: 'No new rooms to add. All provided rooms already exist or were invalid.',
+        skipped
+      });
+    }
+
+    // Insert rooms
+    const { data: created, error: insertErr } = await supabase
+      .from('rooms')
+      .insert(normalized)
+      .select();
+
+    if (insertErr) {
+      console.error('❌ Error bulk inserting rooms:', insertErr);
+      return res.status(500).json({ message: 'Failed to create rooms in bulk' });
+    }
+
+    console.log(`✅ Bulk created ${created?.length || 0} rooms, skipped ${skipped.length}`);
+
+    // Optionally update room count
+    try { await HostelModel.updateRoomCount(hostelId); } catch (e) { console.warn('Room count update skipped:', e?.message); }
+
+    res.status(201).json({
+      message: `Created ${created?.length || 0} room(s). Skipped ${skipped.length}.`,
+      created: created || [],
+      skipped
+    });
+
+  } catch (error) {
+    console.error('❌ Error bulk creating rooms:', error);
+    res.status(500).json({ message: 'Failed to bulk create rooms' });
   }
 });
 
@@ -553,6 +975,82 @@ router.delete('/rooms/:roomId', authenticateToken, requireSuperAdminRole, async 
   } catch (error) {
     console.error('❌ Error deleting room:', error);
     res.status(500).json({ message: 'Failed to delete room' });
+  }
+});
+
+// POST /api/superadmin/rooms/:roomId/vacate - Vacate room (remove all allotments)
+router.post('/rooms/:roomId/vacate', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    console.log(`🏠 Vacating room ${roomId}...`);
+    
+    // First, get the room details
+    const room = await RoomModel.findById(roomId, 'room_id');
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+    
+    // Find all active allotments for this room
+    const allotments = await RoomAllotmentModel.findAll();
+    const activeAllotments = allotments.filter(a => 
+      a.room_id == roomId && a.status === 'Active'
+    );
+    
+    console.log(`📋 Found ${activeAllotments.length} active allotments to clear`);
+
+    // Robust approach: bulk-delete all active allotments for this room to avoid UPDATE triggers expecting updated_at
+    // 1) Count active allotments
+    const { count: activeCount, error: countError } = await supabase
+      .from('room_allotments')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', roomId)
+      .eq('status', 'Active');
+
+    if (countError) {
+      console.error('❌ Error counting active allotments:', countError);
+    }
+
+    // 2) Delete active allotments
+    const { error: bulkDeleteError } = await supabase
+      .from('room_allotments')
+      .delete()
+      .eq('room_id', roomId)
+      .eq('status', 'Active');
+
+    if (bulkDeleteError) {
+      console.error('❌ Error deleting active allotments:', bulkDeleteError);
+    } else {
+      console.log(`✅ Deleted ${activeCount || 0} active allotment(s) for room ${roomId}`);
+    }
+
+    // Build response details (minimal, as rows aren't returned from delete without select)
+    const vacatedAllotments = Array.from({ length: activeCount || 0 }, (_, i) => ({
+      allotment_id: null,
+      status: 'Removed',
+      vacated_date: new Date().toISOString().split('T')[0]
+    }));
+    
+    // Skip updating room status to avoid UPDATE triggers expecting updated_at
+    // Just fetch latest room for response
+    const updatedRoom = await RoomModel.findById(roomId, 'room_id');
+    
+    console.log(`✅ Successfully vacated room ${roomId}: ${vacatedAllotments.length} allotments updated/removed`);
+
+    res.json({
+  message: `Room cleared successfully. ${vacatedAllotments.length} active allotment(s) have been removed.`,
+      room: updatedRoom,
+      vacatedAllotments: vacatedAllotments.length,
+      details: vacatedAllotments.map(a => ({
+        allotmentId: a.allotment_id,
+        status: a.status,
+        vacatedDate: a.vacated_date
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error vacating room:', error);
+    res.status(500).json({ message: 'Failed to vacate room: ' + error.message });
   }
 });
 

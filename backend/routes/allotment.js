@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 // Database query helper removed - supabase client and models are used instead
-const { RoomAllotmentModel, AllotmentApplicationModel, HostelModel, RoomModel } = require('../models');
+const { RoomAllotmentModel, AllotmentApplicationModel, HostelModel, RoomModel, StudentModel } = require('../models');
 
 // In-memory storage for allotment data (replace with database in production)
 let allotmentApplications = [];
@@ -120,9 +120,16 @@ router.post('/register', authenticateToken, async (req, res) => {
                 message: 'Missing required fields' 
             });
         }
-        
-    // Check if student is already allocated a room
-    const existingAllocation = await RoomAllotmentModel.findActiveByStudent(userId);
+        // Ensure student profile exists to map to student_id
+        const student = await StudentModel.findByUserId(userId);
+        if (!student) {
+            return res.status(400).json({
+                message: 'Please complete your student profile before applying for allotment'
+            });
+        }
+
+        // Check if student is already allocated a room (use student_id, not userId)
+        const existingAllocation = await RoomAllotmentModel.findActiveByStudent(student.student_id);
         
         if (existingAllocation) {
             return res.status(400).json({ 
@@ -130,8 +137,8 @@ router.post('/register', authenticateToken, async (req, res) => {
             });
         }
         
-    // Check if student already has a pending application
-    const existingApplication = await AllotmentApplicationModel.findByUserAndStatus(userId, 'pending');
+        // Check if student already has a pending application
+        const existingApplication = await AllotmentApplicationModel.findByUserAndStatus(userId, 'pending');
         
         if (existingApplication) {
             return res.status(400).json({ 
