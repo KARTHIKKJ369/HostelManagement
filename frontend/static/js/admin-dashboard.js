@@ -198,163 +198,165 @@ function loadFinancialSummary() {
 }
 
 function loadMaintenanceOverview() {
-    const maintenanceOverview = {
-        totalRequests: 47,
-        pendingRequests: 12,
-        inProgress: 8,
-        completedThisWeek: 15
-    };
-    
-    document.getElementById('maintenanceOverview').innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 1rem; margin-top: 1rem;">
-            <div style="text-align: center;">
-                <h4 style="margin: 0; color: #2563eb;">${maintenanceOverview.totalRequests}</h4>
-                <small>Total</small>
-            </div>
-            <div style="text-align: center;">
-                <h4 style="margin: 0; color: #f59e0b;">${maintenanceOverview.pendingRequests}</h4>
-                <small>Pending</small>
-            </div>
-            <div style="text-align: center;">
-                <h4 style="margin: 0; color: #3b82f6;">${maintenanceOverview.inProgress}</h4>
-                <small>In Progress</small>
-            </div>
-            <div style="text-align: center;">
-                <h4 style="margin: 0; color: #10b981;">${maintenanceOverview.completedThisWeek}</h4>
-                <small>Completed</small>
-            </div>
-        </div>
-    `;
+    (async () => {
+        const el = document.getElementById('maintenanceOverview');
+        try {
+            const resp = await API.call('/superadmin/maintenance/overview', { method: 'GET' });
+            const o = resp.overview || { total: 0, pending: 0, inProgress: 0, completedThisWeek: 0 };
+            el.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                    <div style="text-align: center;">
+                        <h4 style="margin: 0; color: #2563eb;">${o.total}</h4>
+                        <small>Total</small>
+                    </div>
+                    <div style="text-align: center;">
+                        <h4 style="margin: 0; color: #f59e0b;">${o.pending}</h4>
+                        <small>Pending</small>
+                    </div>
+                    <div style="text-align: center;">
+                        <h4 style="margin: 0; color: #3b82f6;">${o.inProgress}</h4>
+                        <small>In Progress</small>
+                    </div>
+                    <div style="text-align: center;">
+                        <h4 style="margin: 0; color: #10b981;">${o.completedThisWeek}</h4>
+                        <small>Completed (7d)</small>
+                    </div>
+                </div>`;
+        } catch (e) {
+            console.error('❌ Maintenance overview error:', e);
+            el.innerHTML = '<div style="color:#dc2626; text-align:center;">Failed to load maintenance overview</div>';
+        }
+    })();
 }
 
 function loadSecuritySummary() {
-    const securitySummary = {
-        activeLogins: 67,
-        failedAttempts: 3,
-        suspiciousActivity: 1,
-        lastSecurityScan: '2 hours ago'
-    };
-    
-    document.getElementById('securitySummary').innerHTML = `
-        <div style="margin-top: 1rem;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem;">
-                <div style="text-align: center;">
-                    <h4 style="margin: 0; color: #10b981;">${securitySummary.activeLogins}</h4>
-                    <small>Active Logins</small>
-                </div>
-                <div style="text-align: center;">
-                    <h4 style="margin: 0; color: #f59e0b;">${securitySummary.failedAttempts}</h4>
-                    <small>Failed Attempts</small>
-                </div>
-                <div style="text-align: center;">
-                    <h4 style="margin: 0; color: #dc2626;">${securitySummary.suspiciousActivity}</h4>
-                    <small>Suspicious</small>
-                </div>
-            </div>
-            <p style="margin-top: 1rem; font-size: 0.9rem; color: #6b7280;">Last Security Scan: ${securitySummary.lastSecurityScan}</p>
-        </div>
-    `;
+    (async () => {
+        const el = document.getElementById('securitySummary');
+        try {
+            const resp = await API.call('/superadmin/security/summary', { method: 'GET' });
+            const s = resp.summary || { activeLogins: 0, failedAttempts: 0, suspiciousActivity: 0, lastSecurityScan: 'N/A' };
+            el.innerHTML = `
+                <div style="margin-top: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem;">
+                        <div style=\"text-align: center;\">
+                            <h4 style=\"margin: 0; color: #10b981;\">${s.activeLogins}</h4>
+                            <small>Active Logins</small>
+                        </div>
+                        <div style=\"text-align: center;\">
+                            <h4 style=\"margin: 0; color: #f59e0b;\">${s.failedAttempts}</h4>
+                            <small>Failed Attempts</small>
+                        </div>
+                        <div style=\"text-align: center;\">
+                            <h4 style=\"margin: 0; color: #dc2626;\">${s.suspiciousActivity}</h4>
+                            <small>Suspicious</small>
+                        </div>
+                    </div>
+                    <p style=\"margin-top: 1rem; font-size: 0.9rem; color: #6b7280;\">Last Security Scan: ${s.lastSecurityScan}</p>
+                </div>`;
+        } catch (e) {
+            console.error('❌ Security summary error:', e);
+            el.innerHTML = '<div style="color:#dc2626; text-align:center;">Failed to load security summary</div>';
+        }
+    })();
 }
 
 function loadSystemHealth() {
-    const systemHealth = {
-        serverStatus: 'Online',
-        databaseStatus: 'Healthy',
-        backupStatus: 'Up to date',
-        systemLoad: '34%',
-        diskUsage: '67%',
-        memoryUsage: '42%'
-    };
-    
-    document.getElementById('systemHealth').innerHTML = `
-        <div style="margin-top: 1rem;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;">
-                <div>
-                    <p style="margin: 0; font-weight: 500;">Server Status</p>
-                    <p style="margin: 0; color: #10b981;">${systemHealth.serverStatus}</p>
-                </div>
-                <div>
-                    <p style="margin: 0; font-weight: 500;">Database</p>
-                    <p style="margin: 0; color: #10b981;">${systemHealth.databaseStatus}</p>
-                </div>
-                <div>
-                    <p style="margin: 0; font-weight: 500;">Backup</p>
-                    <p style="margin: 0; color: #10b981;">${systemHealth.backupStatus}</p>
-                </div>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                <div>
-                    <p style="margin: 0; font-weight: 500;">System Load</p>
-                    <p style="margin: 0; color: #3b82f6;">${systemHealth.systemLoad}</p>
-                </div>
-                <div>
-                    <p style="margin: 0; font-weight: 500;">Disk Usage</p>
-                    <p style="margin: 0; color: #f59e0b;">${systemHealth.diskUsage}</p>
-                </div>
-                <div>
-                    <p style="margin: 0; font-weight: 500;">Memory</p>
-                    <p style="margin: 0; color: #3b82f6;">${systemHealth.memoryUsage}</p>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function loadAdminActivity() {
-    const activities = [
-        { action: 'User Created', user: 'warden_kumar', time: '2 hours ago' },
-        { action: 'Hostel Added', details: 'Block D - East Wing', time: '4 hours ago' },
-        { action: 'System Backup', details: 'Scheduled backup completed', time: '6 hours ago' },
-        { action: 'Security Update', details: 'Password policy updated', time: '1 day ago' },
-        { action: 'Fee Structure', details: 'Monthly fees updated', time: '2 days ago' }
-    ];
-    
-    let activityHTML = '<div style="margin-top: 1rem;">';
-    activities.forEach(activity => {
-        activityHTML += `
-            <div style="padding: 0.75rem; background: #f8fafc; border-radius: 8px; margin-bottom: 0.5rem;">
-                <div style="display: flex; justify-content: between; align-items: center;">
-                    <div>
-                        <p style="margin: 0; font-weight: 500; color: #2563eb;">${activity.action}</p>
-                        ${activity.details ? `<p style="margin: 0; font-size: 0.9rem; color: #6b7280;">${activity.details}</p>` : ''}
-                        ${activity.user ? `<p style="margin: 0; font-size: 0.9rem; color: #6b7280;">User: ${activity.user}</p>` : ''}
+    (async () => {
+        const el = document.getElementById('systemHealth');
+        try {
+            const health = await API.call('/superadmin/system-health', { method: 'GET' });
+            const serverStatus = (health && health.status === 'healthy') ? 'Online' : 'Degraded';
+            const databaseStatus = 'Healthy';
+            const backupStatus = 'Unknown';
+            const load = (health && health.memory) ? `${Math.round((health.memory.rss || 0)/1024/1024)} MB RSS` : 'N/A';
+            el.innerHTML = `
+                <div style="margin-top: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;">
+                        <div>
+                            <p style="margin: 0; font-weight: 500;">Server Status</p>
+                            <p style="margin: 0; color: #10b981;">${serverStatus}</p>
+                        </div>
+                        <div>
+                            <p style="margin: 0; font-weight: 500;">Database</p>
+                            <p style="margin: 0; color: #10b981;">${databaseStatus}</p>
+                        </div>
+                        <div>
+                            <p style="margin: 0; font-weight: 500;">Backup</p>
+                            <p style="margin: 0; color: #10b981;">${backupStatus}</p>
+                        </div>
                     </div>
-                    <small style="color: #9ca3af;">${activity.time}</small>
-                </div>
-            </div>
-        `;
-    });
-    activityHTML += '</div>';
-    
-    document.getElementById('adminActivity').innerHTML = activityHTML;
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                        <div>
+                            <p style="margin: 0; font-weight: 500;">System Load</p>
+                            <p style="margin: 0; color: #3b82f6;">${load}</p>
+                        </div>
+                        <div>
+                            <p style="margin: 0; font-weight: 500;">Uptime</p>
+                            <p style="margin: 0; color: #3b82f6;">${health && health.uptime ? `${Math.floor(health.uptime/60)} min` : 'N/A'}</p>
+                        </div>
+                    </div>
+                </div>`;
+        } catch (e) {
+            console.error('❌ System health error:', e);
+            el.innerHTML = '<div style="color:#dc2626; text-align:center;">Failed to load system health</div>';
+        }
+    })();
 }
 
-function loadSystemNotifications() {
-    const notifications = [
-        { type: 'warning', message: 'Disk usage approaching 70% threshold', priority: 'Medium' },
-        { type: 'info', message: 'System maintenance scheduled for next Sunday', priority: 'Low' },
-        { type: 'error', message: 'Failed login attempts detected from IP 192.168.1.100', priority: 'High' }
-    ];
-    
-    let notificationHTML = '<div style="margin-top: 1rem;">';
-    notifications.forEach(notification => {
-        const priorityColor = notification.priority === 'High' ? '#dc2626' : 
-                             notification.priority === 'Medium' ? '#f59e0b' : '#10b981';
-        
-        notificationHTML += `
-            <div style="padding: 0.75rem; background: #f8fafc; border-left: 4px solid ${priorityColor}; border-radius: 4px; margin-bottom: 0.5rem;">
-                <div style="display: flex; justify-content: between; align-items: center;">
-                    <p style="margin: 0; font-size: 0.9rem;">${notification.message}</p>
-                    <span style="background: ${priorityColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">
-                        ${notification.priority}
-                    </span>
-                </div>
-            </div>
-        `;
-    });
-    notificationHTML += '</div>';
-    
-    document.getElementById('systemNotifications').innerHTML = notificationHTML;
+async function loadAdminActivity() {
+    const el = document.getElementById('adminActivity');
+    try {
+        const resp = await API.call('/superadmin/admin-activity', { method: 'GET' });
+        const activities = resp.activities || [];
+        if (!activities.length) {
+            el.innerHTML = '<div style="margin-top:1rem; color:#6b7280; text-align:center;">No recent admin activity</div>';
+            return;
+        }
+        const items = activities.map(activity => {
+            const time = activity.time ? new Date(activity.time).toLocaleString() : '';
+            return `
+                <div style=\"padding: 0.75rem; background: #f8fafc; border-radius: 8px; margin-bottom: 0.5rem;\">
+                    <div style=\"display: flex; justify-content: space-between; align-items: center;\">
+                        <div>
+                            <p style=\"margin: 0; font-weight: 500; color: #2563eb;\">${activity.action}</p>
+                            ${activity.details ? `<p style=\\\"margin: 0; font-size: 0.9rem; color: #6b7280;\\\">${activity.details}</p>` : ''}
+                            ${activity.user ? `<p style=\\\"margin: 0; font-size: 0.9rem; color: #6b7280;\\\">User: ${activity.user}</p>` : ''}
+                        </div>
+                        <small style=\"color: #9ca3af;\">${time}</small>
+                    </div>
+                </div>`;
+        }).join('');
+        el.innerHTML = `<div style=\"margin-top: 1rem;\">${items}</div>`;
+    } catch (e) {
+        el.innerHTML = '<div style="color:#dc2626; text-align:center;">Failed to load admin activity</div>';
+    }
+}
+
+async function loadSystemNotifications() {
+    const el = document.getElementById('systemNotifications');
+    try {
+        const resp = await API.call('/superadmin/system-notifications', { method: 'GET' });
+        const notifications = resp.notifications || [];
+        let notificationHTML = '<div style="margin-top: 1rem;">';
+        notifications.forEach(notification => {
+            const priorityColor = notification.priority === 'High' ? '#dc2626' : 
+                                 notification.priority === 'Medium' ? '#f59e0b' : '#10b981';
+            
+            notificationHTML += `
+                <div style="padding: 0.75rem; background: #f8fafc; border-left: 4px solid ${priorityColor}; border-radius: 4px; margin-bottom: 0.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <p style="margin: 0; font-size: 0.9rem;">${notification.message}</p>
+                        <span style="background: ${priorityColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">
+                            ${notification.priority}
+                        </span>
+                    </div>
+                </div>`;
+        });
+        notificationHTML += '</div>';
+        el.innerHTML = notificationHTML;
+    } catch (e) {
+        el.innerHTML = '<div style="color:#dc2626; text-align:center;">Failed to load notifications</div>';
+    }
 }
 
 // Dashboard Action Functions
@@ -1401,6 +1403,8 @@ async function downloadReport() {
         a.download = `${entity}.csv`;
         a.click();
         URL.revokeObjectURL(a.href);
+        // Refresh admin activity so the export action appears
+        try { await loadAdminActivity(); } catch (_) {}
     } catch (e) {
         UIHelper.showAlert('Failed to download report', 'error');
         console.error(e);
@@ -1499,8 +1503,51 @@ function feeManagement() {
     openFeeManager();
 }
 
-function maintenanceReports() {
-    alert('Maintenance Reports coming soon!');
+async function maintenanceReports() {
+        try {
+                const resp = await API.call('/superadmin/maintenance/reports', { method: 'GET' });
+                const s = resp.stats || { byStatus:{}, byCategory:{}, byPriority:{}, total:0 };
+                const recent = resp.recent || [];
+                const renderPairs = (obj) => Object.entries(obj).map(([k,v]) => `<div style="display:flex; justify-content:space-between;"><span>${k}</span><strong>${v}</strong></div>`).join('');
+                const recentRows = recent.map(r => `
+                        <tr>
+                            <td>${r.request_id}</td>
+                            <td>${r.status}</td>
+                            <td>${r.category}</td>
+                            <td>${r.priority}</td>
+                            <td>${new Date(r.created_at).toLocaleString()}</td>
+                        </tr>`).join('');
+                const html = `
+                    <div class="form-row">
+                        <div class="form-group">
+                            <h4>Status</h4>
+                            ${renderPairs(s.byStatus)}
+                        </div>
+                        <div class="form-group">
+                            <h4>Category</h4>
+                            ${renderPairs(s.byCategory)}
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <h4>Priority</h4>
+                            ${renderPairs(s.byPriority)}
+                        </div>
+                        <div class="form-group">
+                            <h4>Total (last 200)</h4>
+                            <strong>${s.total}</strong>
+                        </div>
+                    </div>
+                    <div style="max-height:300px; overflow:auto;">
+                        <table class="table" style="width:100%; border-collapse:collapse;">
+                            <thead><tr><th>ID</th><th>Status</th><th>Category</th><th>Priority</th><th>Created</th></tr></thead>
+                            <tbody>${recentRows}</tbody>
+                        </table>
+                    </div>`;
+                showModal('Maintenance Reports', html);
+        } catch (e) {
+                UIHelper.showAlert('Failed to load maintenance reports', 'error');
+        }
 }
 // Finance manager modal
 async function openFeeManager() {
@@ -1662,15 +1709,146 @@ async function submitRecordPayment(ev, fee_id) {
 }
 
 function scheduleSystemMaintenance() {
-    alert('System Maintenance Scheduler coming soon!');
+        const form = `
+            <form id="scheduleForm" onsubmit="submitScheduleMaintenance(event)" class="modal-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Title</label>
+                        <input type="text" name="title" class="form-input" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-select" required>
+                            <option>Electricity</option>
+                            <option>Plumbing</option>
+                            <option>Cleaning</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-select">
+                            <option>Medium</option>
+                            <option>High</option>
+                            <option>Low</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Scheduled For</label>
+                        <input type="datetime-local" name="scheduled_for" class="form-input" required />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Hostel ID (optional)</label>
+                        <input type="number" name="hostel_id" class="form-input" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Room ID (optional)</label>
+                        <input type="number" name="room_id" class="form-input" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned To (optional)</label>
+                    <input type="text" name="assigned_to" class="form-input" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" name="description" class="form-input" />
+                </div>
+                <div style="text-align:right; margin-top: 0.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Schedule</button>
+                </div>
+            </form>`;
+        showModal('Schedule Maintenance', form);
 }
 
-function securityAudit() {
-    alert('Security Audit interface coming soon!');
+async function submitScheduleMaintenance(ev) {
+        ev.preventDefault();
+        try {
+                const form = ev.target;
+                const payload = Object.fromEntries(new FormData(form).entries());
+                if (payload.hostel_id) payload.hostel_id = parseInt(payload.hostel_id);
+                if (payload.room_id) payload.room_id = parseInt(payload.room_id);
+                // Convert datetime-local to ISO string
+                if (payload.scheduled_for) payload.scheduled_for = new Date(payload.scheduled_for).toISOString();
+                const resp = await API.call('/superadmin/maintenance/schedule', { method: 'POST', body: JSON.stringify(payload) });
+                UIHelper.showAlert('Maintenance scheduled', 'success');
+                closeModal();
+        } catch (e) {
+                UIHelper.showAlert('Failed to schedule maintenance', 'error');
+                console.error(e);
+        }
 }
 
-function accessLogs() {
-    alert('Access Logs viewer coming soon!');
+async function securityAudit() {
+    try {
+        const [summaryResp, notifResp] = await Promise.all([
+            API.call('/superadmin/security/summary', { method: 'GET' }),
+            API.call('/superadmin/system-notifications', { method: 'GET' })
+        ]);
+        const s = summaryResp.summary || {};
+        const notifications = (notifResp.notifications || []).slice(0, 10);
+        const notifList = notifications.map(n => {
+            const color = n.priority === 'High' ? '#dc2626' : n.priority === 'Medium' ? '#f59e0b' : '#10b981';
+            return `<li style=\"margin:6px 0;\"><span style=\"display:inline-block; width:8px; height:8px; border-radius:50%; background:${color}; margin-right:8px;\"></span>${n.message} <small style=\"color:#6b7280;\">(${n.priority})</small></li>`;
+        }).join('');
+        const html = `
+            <div class=\"form-row\">
+                <div class=\"form-group\">
+                    <h4>Security Summary</h4>
+                    <div style=\"display:flex; gap:1rem; flex-wrap:wrap;\">
+                        <div><strong>Active Logins:</strong> ${s.activeLogins ?? 0}</div>
+                        <div><strong>Failed Attempts:</strong> ${s.failedAttempts ?? 0}</div>
+                        <div><strong>Suspicious:</strong> ${s.suspiciousActivity ?? 0}</div>
+                        <div><strong>Last Scan:</strong> ${s.lastSecurityScan || 'N/A'}</div>
+                    </div>
+                </div>
+                <div class=\"form-group\">
+                    <h4>Recent Security Notifications</h4>
+                    <ul style=\"list-style:none; padding:0; margin:0;\">${notifList}</ul>
+                </div>
+            </div>`;
+        showModal('Security Audit', html);
+    } catch (e) {
+        UIHelper.showAlert('Failed to load security audit', 'error');
+    }
+}
+
+async function accessLogs() {
+    try {
+        const [activityResp, logsResp] = await Promise.all([
+            API.call('/superadmin/admin-activity', { method: 'GET' }),
+            API.call('/superadmin/logs', { method: 'GET' })
+        ]);
+        const activities = activityResp.activities || [];
+        const logs = (logsResp.logs || []).slice(0, 20);
+        const actRows = activities.map(a => `
+            <tr><td>${a.action}</td><td>${a.user ?? '-'}</td><td>${a.details ?? ''}</td><td>${a.time ? new Date(a.time).toLocaleString() : ''}</td></tr>`).join('');
+        const logRows = logs.map(l => `
+            <tr><td>${l.ts ? new Date(l.ts).toLocaleString() : ''}</td><td>${l.level}</td><td>${l.message}</td></tr>`).join('');
+        const html = `
+          <div class=\"form-row\">
+            <div class=\"form-group\" style=\"flex:1; min-width:280px;\">
+              <h4>Admin Activity</h4>
+              <div style=\"max-height:220px; overflow:auto;\">
+                <table class=\"table\" style=\"width:100%;\"><thead><tr><th>Action</th><th>User</th><th>Details</th><th>Time</th></tr></thead><tbody>${actRows}</tbody></table>
+              </div>
+            </div>
+            <div class=\"form-group\" style=\"flex:1; min-width:280px;\">
+              <h4>System Logs</h4>
+              <div style=\"max-height:220px; overflow:auto;\">
+                <table class=\"table\" style=\"width:100%;\"><thead><tr><th>Time</th><th>Level</th><th>Message</th></tr></thead><tbody>${logRows}</tbody></table>
+              </div>
+            </div>
+          </div>`;
+        showModal('Access Logs', html);
+    } catch (e) {
+        UIHelper.showAlert('Failed to load access logs', 'error');
+    }
 }
 
 function healthCheck() {
