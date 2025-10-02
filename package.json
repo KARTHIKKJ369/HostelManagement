@@ -1,0 +1,15 @@
+{
+  "name": "hostel-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hostel Management System (Express backend serving static frontend)",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "npm install --prefix backend",
+    "start": "node backend/server.js",
+    "dev": "npm run dev --prefix backend",
+    "health": "node -e \"require('http').get('http://localhost:'+(process.env.PORT||3000)+'/api/health', r=>r.pipe(process.stdout))\""
+  }
+}
