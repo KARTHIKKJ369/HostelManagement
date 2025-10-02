@@ -1256,17 +1256,48 @@ router.get('/admin-activity', authenticateToken, requireSuperAdminRole, async (r
         time: row.ts
       }));
     } catch (e) {
-      // If audit_logs table isn’t available, fall back to sample data
-      items = sampleAdminActivity();
+      // If audit_logs table isn’t available or query fails, return empty list
+      items = [];
     }
-    // If we have an audit_logs table but it's empty, provide a friendly starter set
-    if (!items || items.length === 0) {
-      items = sampleAdminActivity();
-    }
+    // If table exists but empty, return empty (no forced samples) so Clear works as expected
     res.json({ success: true, activities: items });
   } catch (error) {
     console.error('❌ Admin activity error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to load admin activity' });
+  }
+});
+// DELETE /api/superadmin/admin-activity - clear recent admin actions
+router.delete('/admin-activity', authenticateToken, requireSuperAdminRole, async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(501).json({ success: false, message: 'Supabase not configured on server.' });
+    }
+    let deletedTotal = 0;
+    // Attempt a broad delete with a universal filter
+    let del = await supabase.from('audit_logs').delete().not('id', 'is', null).select('id');
+    if (del.error) {
+      // Fallback: delete by batching IDs if the above fails due to RLS or filter semantics
+      let loopGuard = 0;
+      while (loopGuard < 10) {
+        const { data: ids, error: sErr } = await supabase
+          .from('audit_logs')
+          .select('id')
+          .limit(1000);
+        if (sErr) return res.status(500).json({ success: false, message: sErr.message });
+        if (!ids || ids.length === 0) break;
+        const idList = ids.map(r => r.id);
+        const { error: dErr } = await supabase.from('audit_logs').delete().in('id', idList);
+        if (dErr) return res.status(500).json({ success: false, message: dErr.message });
+        deletedTotal += idList.length;
+        loopGuard++;
+      }
+    } else {
+      deletedTotal = Array.isArray(del.data) ? del.data.length : 0;
+    }
+    return res.json({ success: true, deleted: deletedTotal });
+  } catch (error) {
+    console.error('❌ Clear admin activity error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to clear admin activity' });
   }
 });
 

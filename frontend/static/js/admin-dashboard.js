@@ -359,6 +359,81 @@ async function loadSystemNotifications() {
     }
 }
 
+// Hook up header notifications button and modal controls
+(function initNotificationsUI() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('openNotificationsBtn');
+    if (btn) btn.addEventListener('click', openNotificationsModal);
+  });
+})();
+
+function openNotificationsModal() {
+  try {
+    const modal = document.getElementById('notificationsModal');
+    const body = document.getElementById('notificationsModalBody');
+    const listEl = document.getElementById('systemNotifications');
+    if (listEl && body) {
+      body.innerHTML = listEl.innerHTML || '<div style="color:#6b7280;">No notifications to display</div>';
+    }
+    if (modal) modal.style.display = 'block';
+  } catch (e) {
+    console.error('openNotificationsModal error', e);
+  }
+}
+
+function closeNotificationsModal() {
+  const modal = document.getElementById('notificationsModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Enhance loadSystemNotifications to update header badge
+const _origLoadSystemNotifications = typeof loadSystemNotifications === 'function' ? loadSystemNotifications : null;
+loadSystemNotifications = async function() {
+  const el = document.getElementById('systemNotifications');
+  const badge = document.getElementById('notifBadge');
+  try {
+    const resp = await API.call('/superadmin/system-notifications', { method: 'GET' });
+    const notifications = resp.notifications || [];
+    let notificationHTML = '<div style="margin-top: 1rem;">';
+    notifications.forEach(notification => {
+      const priorityColor = notification.priority === 'High' ? '#dc2626' : 
+                             notification.priority === 'Medium' ? '#f59e0b' : '#10b981';
+      notificationHTML += `
+        <div style="padding: 0.75rem; background: #f8fafc; border-left: 4px solid ${priorityColor}; border-radius: 4px; margin-bottom: 0.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <p style="margin: 0; font-size: 0.9rem;">${notification.message}</p>
+            <span style="background: ${priorityColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">
+              ${notification.priority}
+            </span>
+          </div>
+        </div>`;
+    });
+    notificationHTML += '</div>';
+    if (el) el.innerHTML = notificationHTML;
+
+    // Update badge count: show only if > 0
+    if (badge) {
+      const count = notifications.length;
+      badge.textContent = String(count);
+      badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+  } catch (e) {
+    if (el) el.innerHTML = '<div style="color:#dc2626; text-align:center;">Failed to load notifications</div>';
+    if (badge) {
+      badge.textContent = '0';
+      badge.style.display = 'none';
+    }
+  }
+}
+
+// Close modal on backdrop click
+window.addEventListener('click', (ev) => {
+  const modal = document.getElementById('notificationsModal');
+  if (modal && ev.target === modal) {
+    closeNotificationsModal();
+  }
+});
+
 // Dashboard Action Functions
 function manageUsers() {
     alert('User Management interface coming soon!');
@@ -2039,14 +2114,18 @@ async function manageNotifications() {
                                     <option value="Role">Role</option>
                                     <option value="User">User</option>
                                 </select>
-                                                <select id="notifRole" class="form-select" style="display:none;">
+                            </div>
+                            <div id="notifRoleContainer" style="display:none;">
+                                <label class="form-label">Role</label>
+                                <select id="notifRole" class="form-select">
                                     <option value="Student">Student</option>
                                     <option value="Warden">Warden</option>
                                 </select>
-                                                <div id="notifUserPicker" style="display:none; position:relative;">
-                                                    <input id="notifUserQuery" class="form-input" placeholder="Search username or email" oninput="searchUsersForNotification(this.value)" />
-                                                    <div id="notifUserResults" style="position:absolute; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:6px; margin-top:4px; max-height:180px; overflow:auto; width:100%; display:none;"></div>
-                                                </div>
+                            </div>
+                            <div id="notifUserPicker" style="display:none; position:relative;">
+                                <label class="form-label">User</label>
+                                <input id="notifUserQuery" class="form-input" placeholder="Search username or email" oninput="searchUsersForNotification(this.value)" />
+                                <div id="notifUserResults" style="position:absolute; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:6px; margin-top:4px; max-height:180px; overflow:auto; width:100%; display:none;"></div>
                             </div>
                             <input id="notifTitle" class="form-input" placeholder="Title (optional)" />
                             <textarea id="notifMessage" class="form-input" placeholder="Message" rows="3" style="margin-top:0.5rem;"></textarea>
@@ -2071,8 +2150,8 @@ async function manageNotifications() {
 
 function onNotifTargetChange() {
         const target = document.getElementById('notifTarget').value;
-        document.getElementById('notifRole').style.display = (target === 'Role') ? 'inline-block' : 'none';
-    document.getElementById('notifUserPicker').style.display = (target === 'User') ? 'inline-block' : 'none';
+        document.getElementById('notifRoleContainer').style.display = (target === 'Role') ? 'block' : 'none';
+    document.getElementById('notifUserPicker').style.display = (target === 'User') ? 'block' : 'none';
 }
 
 async function submitNotification() {
@@ -2201,5 +2280,47 @@ document.getElementById('logoutBtn').addEventListener('click', function() {
         window.location.href = 'login.html';
     }
 });
+
+// Clear Recent Admin Activity
+(function initClearActivity() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('clearActivityBtn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      try {
+        // Try backend delete endpoint if present
+        const resp = await API.call('/superadmin/admin-activity', { method: 'DELETE' });
+        if (resp && resp.success) {
+          document.getElementById('adminActivity').innerHTML = '<div style="margin-top:1rem; color:#6b7280; text-align:center;">No recent admin activity</div>';
+          return;
+        }
+      } catch (e) {
+        // Fallback: frontend clear only
+      }
+      document.getElementById('adminActivity').innerHTML = '<div style="margin-top:1rem; color:#6b7280; text-align:center;">No recent admin activity</div>';
+    });
+  });
+})();
+
+// Clear Recent Admin Activity with Reload
+(function initClearActivityReload() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('clearActivityBtn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      try {
+        const resp = await API.call('/superadmin/admin-activity', { method: 'DELETE' });
+        if (resp && resp.success) {
+          await loadAdminActivity();
+          return;
+        }
+      } catch (e) {
+        // ignore
+      }
+      // fallback if delete failed: still clear UI
+      document.getElementById('adminActivity').innerHTML = '<div style="margin-top:1rem; color:#6b7280; text-align:center;">No recent admin activity</div>';
+    });
+  });
+})();
 
 console.log('Admin Dashboard functions loaded');
