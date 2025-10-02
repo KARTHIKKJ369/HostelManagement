@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Admin Dashboard - Hostel Management System</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="static/css/style.css">
+    <link rel="stylesheet" href="static/css/style.css?v=3">
 </head>
 <body>
     <div class="header">
@@ -24,7 +24,7 @@
                         <span>Notifications</span>
                         <span id="notifBadge" class="notification-badge" style="position:absolute; top:-6px; right:-6px; display:none;">0</span>
                     </button>
-                    <button id="logoutBtn" class="btn btn-secondary" style="width: auto; padding: 12px 24px;">Logout</button>
+                    <button id="logoutBtn" class="btn btn-outline" style="width: auto; padding: 12px 24px;">Logout</button>
                 </div>
             </div>
         </div>
@@ -32,7 +32,7 @@
 
     <div class="container">
         <!-- User Welcome Card -->
-        <div class="card">
+        <div class="welcome-card">
             <div id="userInfo">
                 <!-- User info will be populated by JavaScript -->
             </div>
@@ -94,7 +94,7 @@
                 <button class="btn btn-primary" style="margin-top: 1rem;" onclick="manageUsers()">
                     Manage Users
                 </button>
-                <button class="btn btn-secondary" style="margin-top: 0.5rem;" onclick="createUser()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="createUser()">
                     Create User
                 </button>
             </div>
@@ -115,7 +115,7 @@
                 <button class="btn btn-primary" style="margin-top: 1rem;" onclick="manageHostels()">
                     Manage Hostels
                 </button>
-                <button class="btn btn-secondary" style="margin-top: 0.5rem;" onclick="addHostel()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="addHostel()">
                     Add Hostel
                 </button>
             </div>
@@ -133,8 +133,8 @@
                 <p>View comprehensive system statistics and trends</p>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
                     <button class="btn btn-primary" onclick="viewAnalytics()">View Analytics</button>
-                    <button class="btn btn-secondary" onclick="generateReports()">Generate Reports</button>
-                    <button class="btn btn-secondary" onclick="systemLogs()">System Logs</button>
+                    <button class="btn btn-primary" onclick="generateReports()">Generate Reports</button>
+                    <button class="btn btn-primary" onclick="systemLogs()">System Logs</button>
                 </div>
             </div>
 
@@ -168,7 +168,7 @@
                 <button class="btn btn-primary" style="margin-top: 1rem;" onclick="maintenanceReports()">
                     View Reports
                 </button>
-                <button class="btn btn-secondary" style="margin-top: 0.5rem;" onclick="scheduleSystemMaintenance()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="scheduleSystemMaintenance()">
                     Schedule Maintenance
                 </button>
             </div>
@@ -188,7 +188,7 @@
                 <button class="btn btn-primary" style="margin-top: 1rem;" onclick="securityAudit()">
                     Security Audit
                 </button>
-                <button class="btn btn-secondary" style="margin-top: 0.5rem;" onclick="accessLogs()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="accessLogs()">
                     Access Logs
                 </button>
             </div>
@@ -222,7 +222,7 @@
                 </h3>
                 <div style="display:flex; gap:0.5rem; justify-content:flex-end; margin-bottom:0.5rem;">
                     <button class="btn btn-outline" id="clearActivityBtn">Clear</button>
-                    <button class="btn btn-secondary" onclick="loadAdminActivity()">Refresh</button>
+                    <button class="btn btn-primary" onclick="loadAdminActivity()">Refresh</button>
                 </div>
                 <div id="adminActivity">
                     <!-- Admin activity will be populated here -->
