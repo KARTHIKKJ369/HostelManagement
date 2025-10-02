@@ -13,7 +13,7 @@ function checkAuthentication() {
     
     if (!token || !user || user.role !== 'SuperAdmin') {
         console.warn('Unauthorized access to admin dashboard');
-        window.location.href = 'login.html';
+    window.location.href = '/login';
         return;
     }
     
@@ -2276,8 +2276,7 @@ async function deleteNotification(id) {
 // Logout function
 document.getElementById('logoutBtn').addEventListener('click', function() {
     if (confirm('Are you sure you want to logout?')) {
-        TokenManager.clear();
-        window.location.href = 'login.html';
+        Auth.logout();
     }
 });
 

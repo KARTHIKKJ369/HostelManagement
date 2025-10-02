@@ -1,5 +1,25 @@
 // API Base URL
-const API_BASE_URL = 'http://localhost:3000/api';
+// Use same-origin in hosted environments (Render) and localhost when opened via file:// or local dev
+const API_BASE_URL = (typeof window !== 'undefined' && window.location && window.location.protocol !== 'file:')
+    ? '/api'
+    : 'http://localhost:3000/api';
+
+// Route resolver: maps app routes to HTML files when opened via file://
+function resolveRoute(path) {
+    if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') {
+        switch (path) {
+            case '/login': return 'login.html';
+            case '/register': return 'register.html';
+            case '/admin': return 'admin-dashboard.html';
+            case '/student': return 'student-dashboard.html';
+            case '/warden': return 'warden-dashboard.html';
+            case '/': default: return 'login.html';
+        }
+    }
+    return path;
+}
+// Expose globally for other scripts
+window.resolveRoute = resolveRoute;
 
 // Password toggle functionality
 function togglePassword(fieldId) {
@@ -303,27 +323,27 @@ const Auth = {
                 // Role-based redirect
                 const userRole = response.data.user.role;
                 console.log('User role from server:', userRole);
-                let redirectUrl = 'dashboard.html'; // default fallback
+                let redirectUrl = '/'; // default fallback
                 
                 switch (userRole) {
                     case 'Student':
-                        redirectUrl = 'student-dashboard.html';
+                        redirectUrl = '/student';
                         break;
                     case 'Warden':
-                        redirectUrl = 'warden-dashboard.html';
+                        redirectUrl = '/warden';
                         break;
                     case 'SuperAdmin':
                     case 'Admin':
-                        redirectUrl = 'admin-dashboard.html';
+                        redirectUrl = '/admin';
                         break;
                     default:
-                        redirectUrl = 'dashboard.html';
+                        redirectUrl = '/';
                 }
                 
                 console.log('Redirecting to:', redirectUrl);
                 
                 setTimeout(() => {
-                    window.location.href = redirectUrl;
+                    window.location.href = resolveRoute(redirectUrl);
                 }, 1500);
             }
         } catch (error) {
@@ -345,7 +365,7 @@ const Auth = {
                 UIHelper.showAlert('Registration successful! You can now login.', 'success');
                 
                 setTimeout(() => {
-                    window.location.href = 'login.html';
+                    window.location.href = resolveRoute('/login');
                 }, 2000);
             }
         } catch (error) {
@@ -362,12 +382,12 @@ const Auth = {
             UIHelper.showAlert('Logged out successfully!', 'success');
             
             setTimeout(() => {
-                window.location.href = 'login.html';
+                window.location.href = resolveRoute('/login');
             }, 1000);
         } catch (error) {
             // Even if API call fails, clear local storage
             TokenManager.clear();
-            window.location.href = 'login.html';
+            window.location.href = resolveRoute('/login');
         }
     },
     
@@ -381,7 +401,7 @@ const Auth = {
     
     requireAuth() {
         if (!this.isAuthenticated()) {
-            window.location.href = 'login.html';
+            window.location.href = resolveRoute('/login');
             return false;
         }
         return true;
@@ -544,19 +564,21 @@ const DashboardPage = {
 // Initialize page-specific functionality
 document.addEventListener('DOMContentLoaded', () => {
     const path = window.location.pathname;
-    const page = path.substring(path.lastIndexOf('/') + 1);
+    let page = path.substring(path.lastIndexOf('/') + 1);
+    // Normalize: strip .html and '-dashboard' suffix for local file navigation
+    page = page.replace(/\.html$/, '').replace(/-dashboard$/, '');
     
     switch (page) {
-        case 'login.html':
+    case 'login':
             LoginPage.init();
             break;
-        case 'register.html':
+    case 'register':
             RegisterPage.init();
             break;
-        case 'dashboard.html':
-        case 'student-dashboard.html':
-        case 'warden-dashboard.html':
-        case 'admin-dashboard.html':
+    case '':
+    case 'student':
+    case 'warden':
+    case 'admin':
             DashboardPage.init();
             break;
     }

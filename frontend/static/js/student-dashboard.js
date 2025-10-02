@@ -19,7 +19,7 @@ function checkAuthentication() {
     
     if (!token || !user) {
         console.warn('No authentication found');
-        window.location.href = 'login.html';
+    window.location.href = '/login';
         return false;
     }
     
@@ -83,14 +83,14 @@ async function checkStudentProfile() {
 function getCorrectDashboard(role) {
     switch (role) {
         case 'Student':
-            return 'student-dashboard.html';
+            return '/student';
         case 'Warden':
-            return 'warden-dashboard.html';
+            return '/warden';
         case 'SuperAdmin':
         case 'Admin':
-            return 'admin-dashboard.html';
+            return '/admin';
         default:
-            return 'dashboard.html';
+            return '/';
     }
 }
 
@@ -113,8 +113,7 @@ const StudentDashboard = {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => {
                 if (confirm('Are you sure you want to logout?')) {
-                    TokenManager.clear();
-                    window.location.href = 'login.html';
+                    Auth.logout();
                 }
             });
         }
