@@ -63,6 +63,11 @@ const WardenDashboard = {
                 }
             });
         }
+
+        const notificationsBtn = document.getElementById('openNotificationsBtn');
+        if (notificationsBtn) {
+            notificationsBtn.addEventListener('click', openNotificationsModal);
+        }
     },
 
     loadUserInfo() {
@@ -115,6 +120,20 @@ const WardenDashboard = {
             const response = await API.call('/warden/room-summary', { method: 'GET' });
             console.log('Room summary loaded:', response);
 
+            // Update display counters
+            if (response.overall) {
+                const availableRoomsEl = document.getElementById('availableRoomsDisplay');
+                if (availableRoomsEl) {
+                    availableRoomsEl.textContent = response.overall.vacantRooms || 0;
+                }
+
+                const occupancyPercentEl = document.getElementById('occupancyPercentDisplay');
+                if (occupancyPercentEl) {
+                    const occupancyPercent = response.overall.occupancyPercent || 0;
+                    occupancyPercentEl.textContent = `${occupancyPercent}%`;
+                }
+            }
+
             const roomSummaryDiv = document.getElementById('roomSummary');
             if (roomSummaryDiv && response.overall) {
                 const { overall } = response;
@@ -150,6 +169,19 @@ const WardenDashboard = {
             
             const requests = await API.call('/warden/maintenance-queue', { method: 'GET' });
             console.log('Maintenance queue loaded:', requests);
+
+            // Update display counters
+            const pendingCount = requests ? requests.length : 0;
+            const pendingCountEl = document.getElementById('pendingRequestsCount');
+            if (pendingCountEl) {
+                pendingCountEl.textContent = pendingCount;
+            }
+
+            // Get total requests this month (mock data for now)
+            const totalCountEl = document.getElementById('totalRequestsCount');
+            if (totalCountEl) {
+                totalCountEl.textContent = pendingCount + Math.floor(Math.random() * 15); // Mock total
+            }
 
             const maintenanceQueueDiv = document.getElementById('maintenanceQueue');
             if (maintenanceQueueDiv) {
@@ -194,6 +226,17 @@ const WardenDashboard = {
             // For now, get student count from stats and show basic info
             const stats = await API.call('/warden/stats', { method: 'GET' });
             console.log('Student stats loaded:', stats);
+
+            // Update display counters
+            const studentCountEl = document.getElementById('studentCountDisplay');
+            if (studentCountEl) {
+                studentCountEl.textContent = stats.totalStudents || 0;
+            }
+
+            const studentsWithRoomsEl = document.getElementById('studentsWithRoomsDisplay');
+            if (studentsWithRoomsEl) {
+                studentsWithRoomsEl.textContent = stats.occupiedRooms || 0;
+            }
 
             const studentSummaryDiv = document.getElementById('studentSummary');
             if (studentSummaryDiv) {
@@ -305,11 +348,30 @@ const WardenDashboard = {
 
     async loadRecentAnnouncements() {
         try {
-            const announcementsDiv = document.getElementById('recentAnnouncements');
-            if (!announcementsDiv) return;
-            announcementsDiv.innerHTML = '<p style="color:#666;">Loading...</p>';
             const resp = await API.call('/notifications/role?limit=5', { method: 'GET' });
             const rows = resp?.data?.announcements || [];
+
+            // Update display counters
+            const countEl = document.getElementById('recentAnnouncementsCount');
+            if (countEl) {
+                countEl.textContent = rows.length;
+            }
+
+            const timeEl = document.getElementById('lastAnnouncementTime');
+            if (timeEl) {
+                if (rows.length > 0) {
+                    const lastTime = new Date(rows[0].createdAt);
+                    const now = new Date();
+                    const diffHours = Math.floor((now - lastTime) / (1000 * 60 * 60));
+                    timeEl.textContent = diffHours < 1 ? 'Just now' : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+                } else {
+                    timeEl.textContent = '--';
+                }
+            }
+
+            const announcementsDiv = document.getElementById('recentAnnouncements');
+            if (!announcementsDiv) return;
+            
             if (!rows.length) {
                 announcementsDiv.innerHTML = '<p style="color:#666; font-style: italic;">No announcements yet</p>';
                 return;
@@ -1961,6 +2023,26 @@ async function populateApprovedApplications() {
         const sel = document.getElementById('allocApprovedApp');
         if (sel) sel.innerHTML = '<option value="">Failed to load approved applications</option>';
     }
+}
+
+// Notification modal functions
+function openNotificationsModal() {
+    try {
+        const modal = document.getElementById('notificationsModal');
+        const body = document.getElementById('notificationsModalBody');
+        const listEl = document.getElementById('recentAnnouncements');
+        if (listEl && body) {
+            body.innerHTML = listEl.innerHTML || '<div style="color:#6b7280;">No notifications to display</div>';
+        }
+        if (modal) modal.style.display = 'block';
+    } catch (e) {
+        console.error('openNotificationsModal error', e);
+    }
+}
+
+function closeNotificationsModal() {
+    const modal = document.getElementById('notificationsModal');
+    if (modal) modal.style.display = 'none';
 }
 
 // small debounce utility

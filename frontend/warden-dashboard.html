@@ -15,10 +15,16 @@
                     <h1 style="margin: 0; font-size: 2.5rem;">Warden Dashboard</h1>
                     <p style="margin: 0.5rem 0 0 0;">Hostel Management & Oversight</p>
                 </div>
-                <div>
-                    <button id="logoutBtn" class="btn btn-outline" style="width: auto; padding: 12px 24px;">
-                        Logout
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <button id="openNotificationsBtn" class="btn btn-outline" title="View notifications" style="width:auto; padding: 10px 14px; position:relative; display:flex; align-items:center; gap:8px;">
+                        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 01-3.46 0"></path>
+                        </svg>
+                        <span>Notifications</span>
+                        <span id="notifBadge" class="notification-badge" style="position:absolute; top:-6px; right:-6px; display:none;">0</span>
                     </button>
+                    <button id="logoutBtn" class="btn btn-outline" style="width: auto; padding: 12px 24px;">Logout</button>
                 </div>
             </div>
         </div>
@@ -26,13 +32,13 @@
 
     <div class="container">
         <!-- User Welcome Card -->
-        <div class="card">
+        <div class="welcome-card">
             <div id="userInfo">
                 <!-- User info will be populated by JavaScript -->
             </div>
         </div>
 
-        <!-- Quick Stats -->
+        <!-- Hostel Stats -->
         <div class="stats-grid">
             <div class="stat-item">
                 <h4 id="totalStudents">0</h4>
@@ -53,7 +59,7 @@
         </div>
 
         <!-- Dashboard Content -->
-        <div class="dashboard">
+        <div class="dashboard-grid">
             <!-- Room Management Card -->
             <div class="dashboard-card">
                 <h3>
@@ -63,14 +69,20 @@
                     </svg>
                     Room Management
                 </h3>
-                <p>Manage room allocations and availability</p>
-                <div id="roomSummary">
-                    <!-- Room summary will be populated here -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.75rem 0; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #e67e22;">
+                    <div>
+                        <div id="availableRoomsDisplay" style="font-size: 1.5rem; font-weight: 700; color: #e67e22;">0</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">Available Rooms</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div id="occupancyPercentDisplay" style="font-size: 1.1rem; font-weight: 600; color: #374151;">0%</div>
+                        <div style="font-size: 0.8rem; color: #9ca3af;">Occupancy</div>
+                    </div>
                 </div>
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="manageRooms()">
+                <button class="btn btn-primary" style="margin-top: 1rem; width: 100%;" onclick="manageRooms()">
                     Manage Rooms
                 </button>
-                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="allocateRoom()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem; width: 100%;" onclick="allocateRoom()">
                     Allocate Room
                 </button>
             </div>
@@ -83,14 +95,20 @@
                     </svg>
                     Maintenance Requests
                 </h3>
-                <p>Review and approve maintenance requests</p>
-                <div id="maintenanceQueue">
-                    <!-- Pending requests will be populated here -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.75rem 0; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #3498db;">
+                    <div>
+                        <div id="pendingRequestsCount" style="font-size: 1.5rem; font-weight: 700; color: #3498db;">0</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">Pending Requests</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div id="totalRequestsCount" style="font-size: 1.1rem; font-weight: 600; color: #374151;">0</div>
+                        <div style="font-size: 0.8rem; color: #9ca3af;">Total This Month</div>
+                    </div>
                 </div>
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="reviewRequests()">
+                <button class="btn btn-primary" style="margin-top: 1rem; width: 100%;" onclick="reviewRequests()">
                     Review Requests
                 </button>
-                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="viewMaintenanceHistory()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem; width: 100%;" onclick="viewMaintenanceHistory()">
                     View History
                 </button>
             </div>
@@ -106,14 +124,20 @@
                     </svg>
                     Student Management
                 </h3>
-                <p>Oversee student information and activities</p>
-                <div id="studentSummary">
-                    <!-- Student summary will be populated here -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.75rem 0; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #27ae60;">
+                    <div>
+                        <div id="studentCountDisplay" style="font-size: 1.5rem; font-weight: 700; color: #27ae60;">0</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">Total Students</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div id="studentsWithRoomsDisplay" style="font-size: 1.1rem; font-weight: 600; color: #374151;">0</div>
+                        <div style="font-size: 0.8rem; color: #9ca3af;">With Rooms</div>
+                    </div>
                 </div>
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="viewAllStudents()">
+                <button class="btn btn-primary" style="margin-top: 1rem; width: 100%;" onclick="viewAllStudents()">
                     View All Students
                 </button>
-                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="addStudent()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem; width: 100%;" onclick="addStudent()">
                     Add Student
                 </button>
             </div>
@@ -126,14 +150,20 @@
                     </svg>
                     Announcements
                 </h3>
-                <p>Send notifications to students</p>
-                <div id="recentAnnouncements">
-                    <!-- Recent announcements will be populated here -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.75rem 0; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border-left: 3px solid #9b59b6;">
+                    <div>
+                        <div id="recentAnnouncementsCount" style="font-size: 1.5rem; font-weight: 700; color: #9b59b6;">0</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">Recent Posts</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div id="lastAnnouncementTime" style="font-size: 1.1rem; font-weight: 600; color: #374151;">--</div>
+                        <div style="font-size: 0.8rem; color: #9ca3af;">Last Posted</div>
+                    </div>
                 </div>
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="createAnnouncement()">
+                <button class="btn btn-primary" style="margin-top: 1rem; width: 100%;" onclick="createAnnouncement()">
                     New Announcement
                 </button>
-                <button class="btn btn-primary" style="margin-top: 0.5rem;" onclick="viewAllAnnouncements()">
+                <button class="btn btn-primary" style="margin-top: 0.5rem; width: 100%;" onclick="viewAllAnnouncements()">
                     View All
                 </button>
             </div>
@@ -149,7 +179,7 @@
                     Reports & Analytics
                 </h3>
                 <p>View hostel statistics and reports</p>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem;">
                     <button class="btn btn-primary" onclick="occupancyReport()">Occupancy Report</button>
                     <button class="btn btn-primary" onclick="maintenanceReport()">Maintenance Report</button>
                     <button class="btn btn-primary" onclick="studentReport()">Student Report</button>
@@ -166,8 +196,9 @@
                     </svg>
                     Quick Actions
                 </h3>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                    <button class="btn btn-primary" onclick="emergencyAlert()">Emergency Alert</button>
+                <p>Execute common warden tasks quickly</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem;">
+                    <button class="btn btn-primary" onclick="emergencyAlert()" style="background: #e74c3c; border-color: #c0392b;">Emergency Alert</button>
                     <button class="btn btn-primary" onclick="bulkNotification()">Bulk Notification</button>
                     <button class="btn btn-primary" onclick="roomInspection()">Schedule Inspection</button>
                     <button class="btn btn-primary" onclick="updateRules()">Update Rules</button>
@@ -201,7 +232,7 @@
                 <div id="pendingApprovals">
                     <!-- Pending approvals will be populated here -->
                 </div>
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="reviewApprovals()">
+                <button class="btn btn-primary" style="margin-top: 1rem; width: 100%;" onclick="reviewApprovals()">
                     Review All
                 </button>
             </div>
@@ -223,6 +254,22 @@
             </div>
             <div class="modal-footer" id="generalModalActions">
                 <button class="btn btn-secondary" onclick="closeGeneralModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div id="notificationsModal" class="modal" aria-hidden="true" style="display:none;">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="notificationsModalTitle">
+            <div class="modal-header">
+                <h3 id="notificationsModalTitle">Recent Announcements</h3>
+                <span class="close" role="button" tabindex="0" onclick="closeNotificationsModal()" aria-label="Close">&times;</span>
+            </div>
+            <div class="modal-body" id="notificationsModalBody">
+                <!-- Filled by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeNotificationsModal()">Close</button>
             </div>
         </div>
     </div>
