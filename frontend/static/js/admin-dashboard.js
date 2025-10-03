@@ -471,7 +471,7 @@ async function manageUsers() {
                 <h4>${user.username} <span style="font-size: 0.8rem; background: #e3f2fd; padding: 2px 6px; border-radius: 3px;">${user.role}</span></h4>
                 <p><strong>Email:</strong> ${user.email || 'N/A'} | <strong>Phone:</strong> ${user.phone || 'N/A'}</p>
                 <p><strong>Created:</strong> ${new Date(user.created_at).toLocaleDateString()} | <strong>Last Login:</strong> ${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</p>
-                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;" onclick="editUser(${user.user_id})">Edit</button>
+                <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;" onclick="editUser(${user.user_id})">Edit</button>
                 <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="deleteUser(${user.user_id}, '${user.username}')">Delete</button>
             </div>
         `).join('');
@@ -526,7 +526,7 @@ function showCreateUserForm() {
             </div>
             <div>
                 <button type="submit" class="btn btn-primary">Create User</button>
-                <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
             </div>
         </form>
     `;
@@ -570,7 +570,7 @@ async function manageHostels() {
                 <p><strong>Location:</strong> ${hostel.location || 'N/A'} | <strong>Total Rooms:</strong> ${hostel.total_rooms || 0}</p>
                 <p><strong>Occupancy:</strong> ${hostel.occupied_rooms}/${hostel.total_rooms} rooms | <strong>Warden:</strong> ${hostel.warden_username || 'Not assigned'}</p>
                 <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;" onclick="manageHostelRooms(${hostel.hostel_id}, '${hostel.hostel_name}')">Manage Rooms</button>
-                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;" onclick="editHostel(${hostel.hostel_id})">Edit</button>
+                <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;" onclick="editHostel(${hostel.hostel_id})">Edit</button>
                 <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="deleteHostel(${hostel.hostel_id}, '${hostel.hostel_name}')">Delete</button>
             </div>
         `).join('');
@@ -619,7 +619,7 @@ function showCreateHostelForm() {
             </div>
             <div>
                 <button type="submit" class="btn btn-primary">Create Hostel</button>
-                <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
             </div>
         </form>
     `;
@@ -716,7 +716,7 @@ async function editUser(userId) {
                 </div>
                 <div>
                     <button type="submit" class="btn btn-primary">Update User</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
                 </div>
             </form>
         `;
@@ -808,7 +808,7 @@ async function showReassignWardenDialog(wardenUserId, wardenUsername) {
                 
                 <div>
                     <button type="submit" class="btn btn-primary">Reassign & Delete User</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
                 </div>
             </form>
         `;
@@ -975,7 +975,7 @@ async function editHostel(hostelId) {
                 </div>
                 <div>
                     <button type="submit" class="btn btn-primary">Update Hostel</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="closeModal()" style="margin-left: 0.5rem;">Cancel</button>
                 </div>
             </form>
         `;
@@ -1087,7 +1087,7 @@ async function manageHostelRooms(hostelId, hostelName) {
                     </div>
                 </div>
                 <div>
-                    <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;" onclick="editRoom(${room.room_id})">Edit</button>
+                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-right: 0.5rem;" onclick="editRoom(${room.room_id})">Edit</button>
                     <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="deleteRoom(${room.room_id}, '${room.room_no}')">Delete</button>
                 </div>
             </div>
@@ -1133,7 +1133,7 @@ function showAddRoomForm(hostelId, hostelName) {
                     </div>
                     <div>
                         <button type="submit" class="btn btn-primary">Add Room</button>
-                        <button type="button" class="btn btn-secondary" onclick="manageHostelRooms(${hostelId}, '${hostelName}')" style="margin-left: 0.5rem;">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="manageHostelRooms(${hostelId}, '${hostelName}')" style="margin-left: 0.5rem;">Cancel</button>
                     </div>
                 </form>
             </div>
@@ -1170,7 +1170,7 @@ function showAddRoomForm(hostelId, hostelName) {
                         </div>
                     </div>
                     <div>
-                        <button type="button" class="btn btn-secondary" onclick="previewBulkRooms(${hostelId})">Preview</button>
+                        <button type="button" class="btn btn-primary" onclick="previewBulkRooms(${hostelId})">Preview</button>
                         <button type="submit" class="btn btn-primary" style="margin-left: 0.5rem;">Add Rooms</button>
                     </div>
                     <div id="bulkPreview" style="max-height: 140px; overflow-y: auto; font-size: 0.9rem; color: #555; border: 1px dashed #ddd; padding: 0.5rem; border-radius: 4px; display: none;"></div>
@@ -1463,8 +1463,9 @@ function generateReports() {
                     </select>
                 </div>
                 <div class="form-group" style="margin:0; display:flex; gap:0.5rem;">
-                    <button class="btn btn-secondary" onclick="loadReportPreview()">Load Preview</button>
+                    <button class="btn btn-primary" onclick="loadReportPreview()">Load Preview</button>
                     <button class="btn btn-primary" onclick="downloadReport()">Download CSV</button>
+                    <button class="btn btn-primary" onclick="downloadReportPDF()">Download PDF</button>
                 </div>
             </div>
             <div id="reportDesc" style="color:#6b7280; font-size: 0.95rem; margin: 8px 0 12px 0;"></div>
@@ -1604,6 +1605,94 @@ async function downloadReport() {
         UIHelper.showAlert('Failed to download report', 'error');
         console.error(e);
     }
+}
+
+// Download the selected report as a print-friendly PDF
+async function downloadReportPDF() {
+    try {
+        const entity = document.getElementById('reportEntity').value;
+        const token = TokenManager.getToken();
+        const url = `${API_BASE_URL}/superadmin/export/${entity}`;
+        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'text/csv' } });
+        if (!resp.ok) throw new Error('Failed to load dataset');
+        const csvText = await resp.text();
+        const { headers, rows } = parseCSV(csvText);
+
+        // Build summary using same helpers as preview
+        const breakdowns = buildBreakdowns(headers, rows);
+        const summaryHTML = renderReportSummary(rows.length, breakdowns);
+
+        // Render a full table for PDF (cap very large outputs for performance)
+        const MAX_ROWS = 2000; // safety cap
+        const printableRows = rows.slice(0, MAX_ROWS);
+        const tableHTML = renderReportTableForPDF(headers, printableRows);
+
+        const title = `Report: ${entity.charAt(0).toUpperCase() + entity.slice(1)} — ${new Date().toLocaleString()}`;
+        const note = rows.length > MAX_ROWS ? `<div style="margin:8px 0; color:#9ca3af; font-size:12px;">Note: Showing first ${MAX_ROWS.toLocaleString()} of ${rows.length.toLocaleString()} rows for PDF performance.</div>` : '';
+        const content = `
+            <div>
+                <h1 style="font-size:18px; margin:0;">${title}</h1>
+                <div style="font-size:12px; color:#6b7280; margin:2px 0 10px 0;">Generated by Admin Dashboard</div>
+                ${summaryHTML}
+                ${note}
+                ${tableHTML}
+            </div>`;
+        printReport(content, title);
+
+        // optional: reflect action in activity feed
+        try { await loadAdminActivity(); } catch (_) {}
+    } catch (e) {
+        console.error('PDF export failed', e);
+        UIHelper.showAlert('Failed to generate PDF', 'error');
+    }
+}
+
+// Print helper for Admin dashboard PDF exports
+function printReport(innerHTML, docTitle = 'Report') {
+    const popup = window.open('', '_blank');
+    if (!popup) {
+        UIHelper.showAlert('Please allow pop-ups to download PDF', 'error');
+        return;
+    }
+    const styles = `
+      <style>
+        @page { size: A4; margin: 12mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; color: #111827; }
+        h1, h2, h3, h4 { color: #111827; }
+        .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .table th, .table td { border: 1px solid #e5e7eb; padding: 6px 8px; }
+        .table thead th { background: #f3f4f6; text-align: left; }
+        .kpi-card { background:#f8fafc; border:1px solid #e5e7eb; border-radius:8px; padding:10px; text-align:center; }
+        .form-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+        .form-group h4 { margin: 8px 0 6px 0; }
+        @media print {
+          .no-print { display: none !important; }
+        }
+      </style>`;
+    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${docTitle}</title>${styles}</head><body>${innerHTML}</body></html>`);
+    popup.document.close();
+    popup.focus();
+    // Give the browser a tick to render
+    setTimeout(() => { popup.print(); popup.close(); }, 200);
+}
+
+// Render a print-optimized table (no scroll wrappers)
+function renderReportTableForPDF(headers, rows) {
+    if (!headers || !headers.length) return '<div style="color:#6b7280;">No data</div>';
+    const thead = `<thead><tr>${headers.map(h => `<th>${escapeHTML(h)}</th>`).join('')}</tr></thead>`;
+    const tbody = rows && rows.length
+        ? rows.map(r => `<tr>${headers.map(h => `<td>${escapeHTML(r[h] ?? '')}</td>`).join('')}</tr>`).join('')
+        : `<tr><td colspan="${headers.length}" style="text-align:center; color:#6b7280;">No rows</td></tr>`;
+    return `<table class="table">${thead}<tbody>${tbody}</tbody></table>`;
+}
+
+function escapeHTML(val) {
+    return String(val)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
 }
 
 function exportData() { generateReports(); }
@@ -1796,7 +1885,7 @@ async function openFeeManager() {
                         <td>${f.status}</td>
                         <td>${f.due_date ? new Date(f.due_date).toLocaleDateString() : '-'}</td>
                         <td>
-                            ${f.status !== 'Paid' ? `<button class="btn btn-secondary" onclick="showRecordPayment(${f.fee_id}, ${Number(f.amount) - Number(f.paid_amount)})">Record Payment</button>` : ''}
+                            ${f.status !== 'Paid' ? `<button class="btn btn-primary" onclick="showRecordPayment(${f.fee_id}, ${Number(f.amount) - Number(f.paid_amount)})">Record Payment</button>` : ''}
                         </td>
                     </tr>`).join('');
 
@@ -1850,7 +1939,7 @@ function showCreateFee() {
                     </div>
                 </div>
                 <div style="text-align:right; margin-top: 0.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="openFeeManager()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="openFeeManager()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create</button>
                 </div>
             </form>`;
@@ -1919,7 +2008,7 @@ function showRecordPayment(fee_id, maxAmount) {
                     <input type="text" name="reference" class="form-input" />
                 </div>
                 <div style="text-align:right; margin-top: 0.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="openFeeManager()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="openFeeManager()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Record</button>
                 </div>
             </form>`;
@@ -1973,29 +2062,42 @@ function scheduleSystemMaintenance() {
                     </div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Hostel ID (optional)</label>
-                        <input type="number" name="hostel_id" class="form-input" />
+                    <div class="form-group" style="position:relative;">
+                        <label class="form-label">Hostel (search by name)</label>
+                        <input type="text" id="maintHostelSearch" class="form-input" placeholder="Start typing hostel name…" autocomplete="off" />
+                        <input type="hidden" name="hostel_id" id="maintHostelId" />
+                        <div id="maintHostelSuggestions" class="suggestions" style="position:absolute; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:6px; width:100%; display:none; max-height:180px; overflow:auto;"></div>
+                        <small id="maintHostelHint" style="color:#6b7280;">Optional. Leave blank for site-wide maintenance.</small>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Room ID (optional)</label>
-                        <input type="number" name="room_id" class="form-input" />
+                    <div class="form-group" style="position:relative;">
+                        <label class="form-label">Room (by number)</label>
+                        <input type="text" id="maintRoomSearch" class="form-input" placeholder="Select hostel first, then type room no…" autocomplete="off" disabled />
+                        <input type="hidden" name="room_id" id="maintRoomId" />
+                        <div id="maintRoomSuggestions" class="suggestions" style="position:absolute; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:6px; width:100%; display:none; max-height:180px; overflow:auto;"></div>
+                        <small id="maintRoomHint" style="color:#6b7280;">Optional. Narrow down to a specific room.</small>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Assigned To (optional)</label>
-                    <input type="text" name="assigned_to" class="form-input" />
+                <div class="form-row">
+                    <div class="form-group" style="position:relative;">
+                        <label class="form-label">Assign To (user)</label>
+                        <input type="text" id="maintAssigneeSearch" class="form-input" placeholder="Search by username or email…" autocomplete="off" />
+                        <input type="hidden" id="maintAssigneeUsername" name="assigned_to" />
+                        <div id="maintAssigneeSuggestions" class="suggestions" style="position:absolute; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:6px; width:100%; display:none; max-height:180px; overflow:auto;"></div>
+                        <small style="color:#6b7280;">Optional. Picks username for tracking.</small>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Description</label>
                     <input type="text" name="description" class="form-input" />
                 </div>
                 <div style="text-align:right; margin-top: 0.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Schedule</button>
                 </div>
             </form>`;
         showModal('Schedule Maintenance', form);
+        // init handlers after render
+        setTimeout(initMaintenanceScheduleForm, 0);
 }
 
 async function submitScheduleMaintenance(ev) {
@@ -2014,6 +2116,125 @@ async function submitScheduleMaintenance(ev) {
                 UIHelper.showAlert('Failed to schedule maintenance', 'error');
                 console.error(e);
         }
+}
+
+// --- Maintenance schedule form helpers ---
+let _maintHostelsCache = null;
+let _maintRoomsCache = {};
+let _maintHostelTimer, _maintRoomTimer, _maintUserTimer;
+
+async function initMaintenanceScheduleForm() {
+    // Hostel search
+    const hostelInput = document.getElementById('maintHostelSearch');
+    const hostelId = document.getElementById('maintHostelId');
+    const hostelSug = document.getElementById('maintHostelSuggestions');
+    const roomInput = document.getElementById('maintRoomSearch');
+    const roomId = document.getElementById('maintRoomId');
+    const roomSug = document.getElementById('maintRoomSuggestions');
+    const assigneeInput = document.getElementById('maintAssigneeSearch');
+    const assigneeHidden = document.getElementById('maintAssigneeUsername');
+    const assigneeSug = document.getElementById('maintAssigneeSuggestions');
+
+    if (hostelInput) {
+        hostelInput.addEventListener('input', () => searchHostelsForMaintenance(hostelInput, hostelId, hostelSug, roomInput, roomId, roomSug));
+    }
+    // Clear selections on manual edits
+    hostelInput?.addEventListener('input', () => { hostelId.value = ''; roomInput.value = ''; roomId.value=''; roomInput.disabled = true; roomSug.style.display='none'; });
+
+    // Room search (depends on selected hostel)
+    if (roomInput) {
+        roomInput.addEventListener('input', () => searchRoomsForMaintenance(hostelId, roomInput, roomId, roomSug));
+    }
+
+    // Assignee search
+    if (assigneeInput) {
+        assigneeInput.addEventListener('input', () => searchUsersForMaintenance(assigneeInput, assigneeHidden, assigneeSug));
+    }
+}
+
+async function searchHostelsForMaintenance(inputEl, hiddenIdEl, sugEl, roomInput, roomIdEl, roomSugEl) {
+    clearTimeout(_maintHostelTimer);
+    _maintHostelTimer = setTimeout(async () => {
+        const q = (inputEl.value || '').toLowerCase().trim();
+        if (!_maintHostelsCache) {
+            try {
+                _maintHostelsCache = await API.call('/superadmin/hostels', { method: 'GET' });
+            } catch { _maintHostelsCache = []; }
+        }
+        const list = (_maintHostelsCache || []).filter(h => !q || (h.hostel_name || '').toLowerCase().includes(q));
+        if (!list.length) { sugEl.style.display='none'; return; }
+        sugEl.innerHTML = list.slice(0, 20).map(h => `<div data-id="${h.hostel_id}" style="padding:8px; cursor:pointer;">${h.hostel_name} <small style="color:#6b7280;">(${h.hostel_type || ''})</small></div>`).join('');
+        sugEl.style.display = 'block';
+        Array.from(sugEl.children).forEach(item => item.addEventListener('click', async () => {
+            const id = item.getAttribute('data-id');
+            const name = item.textContent;
+            hiddenIdEl.value = id;
+            inputEl.value = name;
+            sugEl.style.display = 'none';
+            // Enable room search and preload rooms for this hostel
+            roomInput.disabled = false;
+            roomInput.placeholder = 'Type room number…';
+            await preloadRoomsForHostel(id);
+            // Clear any previous room selection
+            roomIdEl.value = '';
+            roomInput.value = '';
+            roomSugEl.style.display = 'none';
+        }));
+    }, 250);
+}
+
+async function preloadRoomsForHostel(hostelId) {
+    if (!hostelId) return;
+    if (_maintRoomsCache[hostelId]) return;
+    try {
+        const rooms = await API.call(`/superadmin/hostels/${hostelId}/rooms`, { method: 'GET' });
+        _maintRoomsCache[hostelId] = rooms || [];
+    } catch { _maintRoomsCache[hostelId] = []; }
+}
+
+async function searchRoomsForMaintenance(hostelIdEl, inputEl, hiddenIdEl, sugEl) {
+    clearTimeout(_maintRoomTimer);
+    _maintRoomTimer = setTimeout(async () => {
+        const hid = hostelIdEl.value;
+        if (!hid) { sugEl.style.display='none'; return; }
+        await preloadRoomsForHostel(hid);
+        const q = (inputEl.value || '').toLowerCase().trim();
+        const rooms = _maintRoomsCache[hid] || [];
+        const list = rooms.filter(r => !q || String(r.room_no || '').toLowerCase().includes(q));
+        if (!list.length) { sugEl.style.display='none'; return; }
+        sugEl.innerHTML = list.slice(0, 40).map(r => `<div data-id="${r.room_id}" style="padding:8px; cursor:pointer;">Room ${r.room_no} <small style="color:#6b7280;">cap ${r.capacity || '-'} | ${r.status}</small></div>`).join('');
+        sugEl.style.display = 'block';
+        Array.from(sugEl.children).forEach(item => item.addEventListener('click', () => {
+            const id = item.getAttribute('data-id');
+            hiddenIdEl.value = id;
+            inputEl.value = item.textContent;
+            sugEl.style.display = 'none';
+        }));
+    }, 250);
+}
+
+async function searchUsersForMaintenance(inputEl, hiddenEl, sugEl) {
+    clearTimeout(_maintUserTimer);
+    _maintUserTimer = setTimeout(async () => {
+        const q = (inputEl.value || '').trim();
+        if (!q) { hiddenEl.value = ''; sugEl.style.display='none'; return; }
+        try {
+            // Use notifications users search which supports q and role filter
+            const res = await API.call(`/notifications/users?q=${encodeURIComponent(q)}`, { method: 'GET' });
+            const users = res.users || res || [];
+            if (!users.length) { sugEl.style.display='none'; return; }
+            sugEl.innerHTML = users.slice(0, 20).map(u => `<div data-username="${u.username}" style="padding:8px; cursor:pointer;">${u.username} ${u.email ? `<small style='color:#6b7280;'>(${u.email})</small>` : ''} ${u.role ? `<span style='background:#eef2ff; color:#1d4ed8; padding:2px 6px; border-radius:10px; font-size:11px; margin-left:6px;'>${u.role}</span>` : ''}</div>`).join('');
+            sugEl.style.display = 'block';
+            Array.from(sugEl.children).forEach(item => item.addEventListener('click', () => {
+                const username = item.getAttribute('data-username');
+                hiddenEl.value = username; // backend expects string assigned_to
+                inputEl.value = username;
+                sugEl.style.display = 'none';
+            }));
+        } catch (e) {
+            sugEl.style.display = 'none';
+        }
+    }, 250);
 }
 
 async function securityAudit() {
@@ -2101,7 +2322,7 @@ async function manageNotifications() {
                         <td>${n.title ? `<strong>${n.title}</strong><br>` : ''}${n.message || ''}</td>
                         <td>${n.receiver_role || (n.receiver_id ? `User #${n.receiver_id}` : 'All')}</td>
                         <td>${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</td>
-                        <td><button class="btn btn-secondary" onclick="deleteNotification(${n.notification_id})">Delete</button></td>
+                        <td><button class="btn btn-danger" onclick="deleteNotification(${n.notification_id})">Delete</button></td>
                     </tr>`).join('');
                 const html = `
                     <div class="form-row">
@@ -2168,7 +2389,7 @@ async function submitNotification() {
                 // Prepend the new row into the modal table for quick feedback
                 const n = resp.notification || {};
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${n.notification_id || ''}</td><td>${n.title ? `<strong>${n.title}</strong><br>` : ''}${n.message || ''}</td><td>${n.receiver_role || (n.receiver_id ? `User #${n.receiver_id}` : 'All')}</td><td>${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</td><td><button class="btn btn-secondary" onclick="deleteNotification(${n.notification_id})">Delete</button></td>`;
+                tr.innerHTML = `<td>${n.notification_id || ''}</td><td>${n.title ? `<strong>${n.title}</strong><br>` : ''}${n.message || ''}</td><td>${n.receiver_role || (n.receiver_id ? `User #${n.receiver_id}` : 'All')}</td><td>${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</td><td><button class="btn btn-danger" onclick="deleteNotification(${n.notification_id})">Delete</button></td>`;
                 const tbody = document.getElementById('notifRows');
                 if (tbody) tbody.prepend(tr);
                 // Clear inputs

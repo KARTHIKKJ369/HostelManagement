@@ -362,26 +362,45 @@ router.post('/student-profile', isAuthenticated, async (req, res) => {
     const existingStudent = await StudentModel.findByUserId(userId);
     if (existingStudent) return res.status(400).json({ message: 'Student profile already exists. You can update it instead.' });
     
-    // Insert student profile
-    const newStudent = await StudentModel.create({
-      user_id: userId,
-      name,
-      reg_no: regNo,
-      year_of_study: parseInt(yearOfStudy),
-      department: department || null,
-      keam_rank: keamRank ? parseInt(keamRank) : null,
-      distance_category: distanceCategory || null,
-      category: category || null,
-      sgpa: sgpa ? parseFloat(sgpa) : null,
-      backlogs: backlogs ? parseInt(backlogs) : 0
-    });
-
-    console.log('✅ Student profile created successfully:', newStudent);
-
-    res.status(201).json({
-      message: 'Student profile created successfully',
-      student: newStudent
-    });
+    // If a student record already exists for this regNo and is not linked, link it; otherwise insert new
+    const existingByReg = await StudentModel.findByRegNo(regNo);
+    if (existingByReg) {
+      if (existingByReg.user_id && existingByReg.user_id !== userId) {
+        return res.status(400).json({ message: 'This registration number is already linked to another account' });
+      }
+      const updated = await StudentModel.update(existingByReg.student_id, {
+        user_id: userId,
+        name,
+        year_of_study: parseInt(yearOfStudy),
+        department: department || null,
+        keam_rank: keamRank ? parseInt(keamRank) : null,
+        distance_category: distanceCategory || null,
+        category: category || null,
+        sgpa: sgpa ? parseFloat(sgpa) : null,
+        backlogs: backlogs ? parseInt(backlogs) : 0
+      }, 'student_id');
+      console.log('✅ Linked and updated existing student record:', updated);
+      return res.status(200).json({ message: 'Student profile linked successfully', student: updated });
+    } else {
+      // Insert student profile
+      const newStudent = await StudentModel.create({
+        user_id: userId,
+        name,
+        reg_no: regNo,
+        year_of_study: parseInt(yearOfStudy),
+        department: department || null,
+        keam_rank: keamRank ? parseInt(keamRank) : null,
+        distance_category: distanceCategory || null,
+        category: category || null,
+        sgpa: sgpa ? parseFloat(sgpa) : null,
+        backlogs: backlogs ? parseInt(backlogs) : 0
+      });
+      console.log('✅ Student profile created successfully:', newStudent);
+      return res.status(201).json({
+        message: 'Student profile created successfully',
+        student: newStudent
+      });
+    }
     
   } catch (error) {
     console.error('❌ Error creating student profile:', error);

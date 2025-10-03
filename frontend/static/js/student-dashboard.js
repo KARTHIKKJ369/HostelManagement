@@ -671,7 +671,7 @@ function newMaintenanceRequest() {
             </div>
             
             <div class="btn-group">
-                <button type="button" onclick="closeGeneralModal()" class="btn btn-secondary">Cancel</button>
+                <button type="button" onclick="closeGeneralModal()" class="btn btn-primary">Cancel</button>
                 <button type="submit" class="btn btn-primary">🔧 Submit Request</button>
             </div>
         </form>
@@ -1301,7 +1301,7 @@ function reportIssue() {
             </div>
             
             <div class="btn-group">
-                <button type="button" onclick="closeGeneralModal()" class="btn btn-secondary">Cancel</button>
+                <button type="button" onclick="closeGeneralModal()" class="btn btn-primary">Cancel</button>
                 <button type="submit" class="btn btn-danger">🚨 Submit Report</button>
             </div>
         </form>

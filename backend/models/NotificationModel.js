@@ -49,7 +49,11 @@ class NotificationModel extends BaseModel {
       if (ur.error) throw ur.error;
       const role = ur.data ? ur.data.role : null;
 
-      const { data, error } = await supabase.from('notifications').select('*, users(username) as sender').or(`receiver_id.eq.${userId},receiver_role.eq.All,receiver_role.eq.${role}`).order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .or(`receiver_id.eq.${userId},receiver_role.eq.All,receiver_role.eq.${role}`)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     } catch (error) {
@@ -63,7 +67,12 @@ class NotificationModel extends BaseModel {
       const ur = await supabase.from('users').select('role').eq('user_id', userId).maybeSingle();
       if (ur.error) throw ur.error;
       const role = ur.data ? ur.data.role : null;
-      const { data, error } = await supabase.from('notifications').select('*, users(username) as sender').or(`receiver_id.eq.${userId},receiver_role.eq.All,receiver_role.eq.${role}`).order('created_at', { ascending: false }).limit(limit);
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .or(`receiver_id.eq.${userId},receiver_role.eq.All,receiver_role.eq.${role}`)
+        .order('created_at', { ascending: false })
+        .limit(limit);
       if (error) throw error;
       return data || [];
     } catch (error) {
@@ -74,7 +83,11 @@ class NotificationModel extends BaseModel {
 
   async findByRole(role) {
     try {
-      const { data, error } = await supabase.from('notifications').select('*, users(username) as sender').or(`receiver_role.eq.${role},receiver_role.eq.All`).order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .or(`receiver_role.eq.${role},receiver_role.eq.All`)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     } catch (error) {
@@ -85,7 +98,11 @@ class NotificationModel extends BaseModel {
 
   async findBySender(senderId) {
     try {
-      const { data, error } = await supabase.from('notifications').select('*, users(username) as sender').eq('sender_id', senderId).order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('sender_id', senderId)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     } catch (error) {

@@ -16,7 +16,7 @@
                     <p style="margin: 0.5rem 0 0 0;">Hostel Management & Oversight</p>
                 </div>
                 <div>
-                    <button id="logoutBtn" class="btn btn-secondary" style="width: auto; padding: 12px 24px;">
+                    <button id="logoutBtn" class="btn btn-outline" style="width: auto; padding: 12px 24px;">
                         Logout
                     </button>
                 </div>
@@ -210,5 +210,21 @@
 
     <script src="static/js/auth.js"></script>
     <script src="static/js/warden-dashboard.js"></script>
+
+    <!-- General Modal -->
+    <div id="generalModal" class="modal" aria-hidden="true" style="display:none;">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="generalModalTitle">
+            <div class="modal-header">
+                <h3 id="generalModalTitle">Details</h3>
+                <span class="close" role="button" tabindex="0" onclick="closeGeneralModal()" aria-label="Close">&times;</span>
+            </div>
+            <div class="modal-body" id="generalModalContent">
+                <!-- Dynamic content -->
+            </div>
+            <div class="modal-footer" id="generalModalActions">
+                <button class="btn btn-secondary" onclick="closeGeneralModal()">Close</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
