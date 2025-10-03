@@ -225,24 +225,25 @@ const WardenDashboard = {
             
             const activityDiv = document.getElementById('recentActivity');
             if (activityDiv) {
-                // For now, show a summary of current status
-                const stats = await API.call('/warden/stats', { method: 'GET' });
-                
-                const activities = [
-                    `${stats.totalStudents || 0} students currently in system`,
-                    `${stats.occupiedRooms || 0} rooms currently occupied`,
-                    `${stats.availableRooms || 0} rooms available for allocation`,
-                    `${stats.pendingRequests || 0} maintenance requests pending review`,
-                    `${stats.pendingApplications || 0} allotment applications pending approval`
-                ];
-                
-                const activityHTML = activities.map(activity => `
-                    <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee;">
-                        <span style="color: #666; font-size: 0.9rem;">• ${activity}</span>
-                    </div>
-                `).join('');
-                
-                activityDiv.innerHTML = activityHTML;
+                activityDiv.innerHTML = '<p style="color:#666;">Loading…</p>';
+                const resp = await API.call('/warden/recent-activity', { method: 'GET' });
+                const items = resp?.data?.items || [];
+                if (!items.length) {
+                    activityDiv.innerHTML = '<p style="color:#666; font-style:italic;">No recent activity</p>';
+                } else {
+                    const format = (it) => {
+                        const time = new Date(it.at).toLocaleString();
+                        if (it.type === 'application') return `Application · ${it.status} · ${it.detail} · ${time}`;
+                        if (it.type === 'maintenance') return `Maintenance · ${it.detail} · ${time}`;
+                        if (it.type === 'announcement') return `Announcement · ${it.detail} · ${time}`;
+                        return `${it.type || 'Activity'} · ${it.detail || ''} · ${time}`;
+                    };
+                    activityDiv.innerHTML = items.map(x => `
+                        <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                            <span style="color: #444; font-size: 0.9rem;">• ${format(x)}</span>
+                        </div>
+                    `).join('');
+                }
             }
 
         } catch (error) {
@@ -270,15 +271,15 @@ const WardenDashboard = {
                                 <div style="flex: 1;">
                                     <strong>Allotment Application</strong>
                                     <div style="font-size: 0.9rem; color: #666;">
-                                        ${app.course} - Year ${app.academicYear} | ${app.roomTypePreference} room
+                                        ${app.course} - Year ${app.academicYear} | ${app.roomTypePreference} room | Priority: <strong>${app.priority || '—'}</strong>
                                         ${app.daysSinceApplied > 0 ? ` | Applied ${app.daysSinceApplied} days ago` : ' | Applied today'}
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 0.5rem;">
-                                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="approveApplication('${app.applicationId}')">
+                                    <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="openApproveApplicationModal('${app.applicationId}')">
                                         Approve
                                     </button>
-                                    <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="rejectApplication('${app.applicationId}')">
+                                    <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="rejectApplication('${app.applicationId}')">
                                         Reject
                                     </button>
                                 </div>
@@ -383,11 +384,68 @@ function financialReport() {
 }
 
 function emergencyAlert() {
-    UIHelper.showAlert('Emergency alert system coming soon!', 'info');
+    const content = `
+        <div class="form-row">
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Alert Title</label>
+                <input id="eaTitle" type="text" class="form-input" placeholder="e.g., Emergency Evacuation" required />
+            </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Message</label>
+                <textarea id="eaMsg" class="form-input" rows="4" placeholder="Briefly describe the emergency and actions required" required></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Audience</label>
+                <select id="eaAudience" class="form-select">
+                    <option value="All">All</option>
+                    <option value="Student" selected>Students</option>
+                    <option value="Warden">Wardens</option>
+                    <option value="Admin">Admins</option>
+                </select>
+                <div class="form-help">Tip: For hostel-only, use “Notify My Hostel Students” in Bulk Notification.</div>
+            </div>
+        </div>`;
+    showGeneralModal('Emergency Alert', content, [
+        { label: 'Send Alert', primary: true, onClick: submitEmergencyAlert }
+    ]);
 }
 
 function bulkNotification() {
-    UIHelper.showAlert('Bulk notification system coming soon!', 'info');
+    const content = `
+        <div class="form-row">
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Title</label>
+                <input id="bnTitle" type="text" class="form-input" placeholder="e.g., Hostel Meeting" required />
+            </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Message</label>
+                <textarea id="bnMsg" class="form-input" rows="4" placeholder="Message to recipients" required></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Scope</label>
+                <select id="bnScope" class="form-select">
+                    <option value="my-hostel" selected>Notify My Hostel Students</option>
+                    <option value="role">By Role (All/Student/Warden/Admin)</option>
+                </select>
+            </div>
+            <div class="form-group" id="bnRoleRow" style="display:none;">
+                <label class="form-label">Audience</label>
+                <select id="bnRole" class="form-select">
+                    <option value="All">All</option>
+                    <option value="Student" selected>Student</option>
+                    <option value="Warden">Warden</option>
+                    <option value="Admin">Admin</option>
+                </select>
+            </div>
+        </div>`;
+    showGeneralModal('Bulk Notification', content, [
+        { label: 'Send', primary: true, onClick: submitBulkNotification }
+    ]);
+    const scopeSel = document.getElementById('bnScope');
+    const roleRow = document.getElementById('bnRoleRow');
+    scopeSel.addEventListener('change', () => {
+        roleRow.style.display = scopeSel.value === 'role' ? 'block' : 'none';
+    });
 }
 
 // ---- Announcements ----
@@ -924,11 +982,113 @@ async function loadAnnouncementsIntoList() {
 }
 
 function roomInspection() {
-    UIHelper.showAlert('Room inspection scheduler coming soon!', 'info');
+    const content = `
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Date</label>
+                <input id="riDate" type="date" class="form-input" required />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <input id="riNotes" type="text" class="form-input" placeholder="Optional" />
+            </div>
+        </div>
+        <p class="form-help">This creates an announcement for your hostel’s students with inspection details.</p>`;
+    showGeneralModal('Schedule Inspection', content, [
+        { label: 'Schedule', primary: true, onClick: submitRoomInspection }
+    ]);
 }
 
 function updateRules() {
-    UIHelper.showAlert('Rules update interface coming soon!', 'info');
+    const content = `
+        <div class="form-row">
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Rules Update Title</label>
+                <input id="ruTitle" type="text" class="form-input" placeholder="e.g., New Quiet Hours" required />
+            </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Summary / Key Changes</label>
+                <textarea id="ruMsg" class="form-input" rows="4" placeholder="Describe the rule changes" required></textarea>
+            </div>
+        </div>`;
+    showGeneralModal('Update Rules', content, [
+        { label: 'Publish', primary: true, onClick: submitUpdateRules }
+    ]);
+}
+
+async function submitEmergencyAlert() {
+    const title = document.getElementById('eaTitle')?.value?.trim();
+    const message = document.getElementById('eaMsg')?.value?.trim();
+    const audience = document.getElementById('eaAudience')?.value || 'Student';
+    if (!title || !message) { UIHelper.showAlert('Title and Message are required', 'error'); return; }
+    try {
+        const body = { title, message, audience };
+        const resp = await API.call('/notifications/announce', { method: 'POST', body: JSON.stringify(body) });
+        if (resp?.success) {
+            UIHelper.showAlert('Emergency alert sent', 'success');
+            closeGeneralModal();
+            await WardenDashboard.loadRecentAnnouncements?.();
+        }
+    } catch (e) {
+        UIHelper.showAlert(e.message || 'Failed to send alert', 'error');
+    }
+}
+
+async function submitBulkNotification() {
+    const title = document.getElementById('bnTitle')?.value?.trim();
+    const message = document.getElementById('bnMsg')?.value?.trim();
+    const scope = document.getElementById('bnScope')?.value || 'my-hostel';
+    const role = document.getElementById('bnRole')?.value || 'Student';
+    if (!title || !message) { UIHelper.showAlert('Title and Message are required', 'error'); return; }
+    try {
+        let resp;
+        if (scope === 'my-hostel') {
+            resp = await API.call('/notifications/announce/my-hostel', { method: 'POST', body: JSON.stringify({ title, message }) });
+        } else {
+            resp = await API.call('/notifications/announce', { method: 'POST', body: JSON.stringify({ title, message, audience: role }) });
+        }
+        if (resp?.success) {
+            UIHelper.showAlert('Notification sent', 'success');
+            closeGeneralModal();
+            await WardenDashboard.loadRecentAnnouncements?.();
+        }
+    } catch (e) {
+        UIHelper.showAlert(e.message || 'Failed to send notification', 'error');
+    }
+}
+
+async function submitRoomInspection() {
+    const date = document.getElementById('riDate')?.value;
+    const notes = document.getElementById('riNotes')?.value?.trim() || '';
+    if (!date) { UIHelper.showAlert('Please pick a date', 'error'); return; }
+    const title = 'Room Inspection Notice';
+    const message = `Room inspection scheduled on ${new Date(date).toLocaleDateString()}` + (notes ? ` — ${notes}` : '');
+    try {
+        const resp = await API.call('/notifications/announce/my-hostel', { method: 'POST', body: JSON.stringify({ title, message }) });
+        if (resp?.success) {
+            UIHelper.showAlert('Inspection scheduled and announced', 'success');
+            closeGeneralModal();
+            await WardenDashboard.loadRecentAnnouncements?.();
+        }
+    } catch (e) {
+        UIHelper.showAlert(e.message || 'Failed to schedule inspection', 'error');
+    }
+}
+
+async function submitUpdateRules() {
+    const title = document.getElementById('ruTitle')?.value?.trim();
+    const message = document.getElementById('ruMsg')?.value?.trim();
+    if (!title || !message) { UIHelper.showAlert('Title and Summary are required', 'error'); return; }
+    try {
+        const resp = await API.call('/notifications/announce', { method: 'POST', body: JSON.stringify({ title, message, audience: 'Student' }) });
+        if (resp?.success) {
+            UIHelper.showAlert('Rules updated and announced', 'success');
+            closeGeneralModal();
+            await WardenDashboard.loadRecentAnnouncements?.();
+        }
+    } catch (e) {
+        UIHelper.showAlert(e.message || 'Failed to publish rules', 'error');
+    }
 }
 
 function reviewApprovals() {
@@ -949,6 +1109,7 @@ async function approveRequest(requestId) {
             // Refresh the maintenance queue and stats
             await WardenDashboard.loadMaintenanceQueue();
             await WardenDashboard.loadStats();
+            await WardenDashboard.loadRecentActivity();
         } else {
             UIHelper.showAlert('Failed to approve maintenance request', 'error');
         }
@@ -972,6 +1133,7 @@ async function approveApplication(applicationId) {
             // Refresh the pending approvals and stats
             await WardenDashboard.loadPendingApprovals();
             await WardenDashboard.loadStats();
+            await WardenDashboard.loadRecentActivity();
         } else {
             UIHelper.showAlert('Failed to approve application', 'error');
         }
@@ -998,6 +1160,7 @@ async function rejectApplication(applicationId) {
             // Refresh the pending approvals and stats
             await WardenDashboard.loadPendingApprovals();
             await WardenDashboard.loadStats();
+            await WardenDashboard.loadRecentActivity();
         } else {
             UIHelper.showAlert('Failed to reject application', 'error');
         }
@@ -1043,14 +1206,15 @@ function showGeneralModal(title, content, actions = []) {
     // Reset actions
     actionsEl.innerHTML = '';
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'btn btn-secondary';
+    closeBtn.className = 'btn btn-primary';
     closeBtn.textContent = 'Close';
     closeBtn.onclick = closeGeneralModal;
     actionsEl.appendChild(closeBtn);
     // Additional actions
     for (const act of actions) {
         const btn = document.createElement('button');
-        btn.className = `btn ${act.primary ? 'btn-primary' : 'btn-secondary'}`;
+        const variant = act.danger ? 'btn-danger' : (act.primary ? 'btn-primary' : 'btn-secondary');
+        btn.className = `btn ${variant}`;
         btn.textContent = act.label;
         btn.onclick = act.onClick;
         actionsEl.appendChild(btn);
@@ -1163,10 +1327,10 @@ async function openApprovalsModal() {
                 <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center;">
                     <div style="flex:1;">
                         <div style="font-weight:600;">${app.course} · Year ${app.academicYear} · ${app.roomTypePreference}</div>
-                        <div style="font-size:0.9rem; color:#666;">Applied ${app.daysSinceApplied > 0 ? app.daysSinceApplied + ' days ago' : 'today'}</div>
+                        <div style="font-size:0.9rem; color:#666;">Priority: <strong>${app.priority || '—'}</strong> (score ${app.priorityScore ?? '—'}) · Applied ${app.daysSinceApplied > 0 ? app.daysSinceApplied + ' days ago' : 'today'}</div>
                     </div>
                     <div style="display:flex; gap:0.5rem;">
-                        <button class="btn btn-primary" onclick="approveApplication('${app.applicationId}')">Approve</button>
+                        <button class="btn btn-primary" onclick="openApproveApplicationModal('${app.applicationId}')">Approve</button>
                         <button class="btn btn-secondary" onclick="rejectApplication('${app.applicationId}')">Reject</button>
                     </div>
                 </div>
@@ -1176,6 +1340,166 @@ async function openApprovalsModal() {
         showGeneralModal('Pending Applications', html);
     } catch (e) {
         showGeneralModal('Pending Applications', '<p style="color:#e74c3c;">Failed to load applications.</p>');
+    }
+}
+
+async function openApproveApplicationModal(applicationId) {
+    // Build modal to optionally allocate a room on approval
+    const body = `
+        <div class="form-row">
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Allocate Room (optional)</label>
+                <select id="aaRoom" class="form-select"><option value="">Do not allocate</option></select>
+            </div>
+            <div class="form-group" style="grid-column:1 / -1; margin-top:0.25rem;">
+                <label class="form-label">Auto-allocate if none selected</label>
+                <div>
+                    <input type="checkbox" id="aaAuto" /> <label for="aaAuto">Pick best available room automatically</label>
+                </div>
+            </div>
+        </div>
+        <p class="form-help">Tip: Leave as "Do not allocate" to only approve the application.</p>`;
+    showGeneralModal('Approve Application', body, [
+        { label: 'Approve Only', primary: false, onClick: () => approveApplication(applicationId) },
+        { label: 'Approve & Allocate', primary: true, onClick: () => approveAndAllocate(applicationId) }
+    ]);
+    // Preload available rooms for convenience
+    await preloadRoomsForApprove();
+}
+
+async function preloadRoomsForApprove() {
+    try {
+        const data = await API.call('/warden/rooms/available', { method: 'GET' });
+        const rooms = data?.data?.rooms || [];
+        const sel = document.getElementById('aaRoom');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Do not allocate</option>' + rooms.map(r => `<option value="${r.roomId}">${r.roomNo} · ${r.hostelName || ''} ${r.hostelType ? '(' + r.hostelType + ')' : ''} · Spots: ${r.availableSpots}</option>`).join('');
+    } catch (_) {}
+}
+
+async function approveAndAllocate(applicationId) {
+    const roomIdVal = document.getElementById('aaRoom')?.value || '';
+    const auto = document.getElementById('aaAuto')?.checked || false;
+    try {
+        const body = roomIdVal ? { roomId: parseInt(roomIdVal) } : (auto ? { autoAllocate: true } : {});
+        const response = await API.call(`/warden/approve-application/${applicationId}`, { method: 'POST', body: JSON.stringify(body) });
+        if (response?.success) {
+            UIHelper.showAlert(roomIdVal ? 'Application approved and room allocated' : 'Application approved', 'success');
+            closeGeneralModal();
+            await WardenDashboard.loadPendingApprovals();
+            await WardenDashboard.loadStats();
+        } else {
+            UIHelper.showAlert(response?.message || 'Failed to approve application', 'error');
+        }
+    } catch (e) {
+        const msg = e?.message || '';
+        if (msg.includes('Student profile not found')) {
+            // Offer quick create student flow and then retry
+            openQuickCreateStudentForApplication(applicationId);
+            return;
+        }
+        UIHelper.showAlert(msg || 'Error approving application', 'error');
+    }
+}
+
+// Quick-create student for an application, then retry approve & allocate
+async function openQuickCreateStudentForApplication(applicationId) {
+    try {
+        // Fetch application + user info to prefill
+        const resp = await API.call(`/warden/applications/${applicationId}`, { method: 'GET' });
+        const app = resp?.application || {};
+        const user = resp?.user || {};
+        const content = `
+            <div class="form-row">
+                <div class="form-group" style="grid-column:1 / -1;">
+                    <div class="alert" style="background:#fff3cd; color:#664d03; border:1px solid #ffecb5; padding:0.5rem; border-radius:6px; margin-bottom:0.5rem;">
+                        No student profile found for this applicant. Create one to proceed with allocation.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input id="qcsName" type="text" class="form-input" placeholder="Full name" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reg No</label>
+                    <input id="qcsReg" type="text" class="form-input" placeholder="Registration number" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Year of Study</label>
+                    <select id="qcsYear" class="form-select">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Department (optional)</label>
+                    <input id="qcsDept" type="text" class="form-input" placeholder="e.g., CSE" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category (optional)</label>
+                    <select id="qcsCat" class="form-select">
+                        <option value="">—</option>
+                        <option>General</option>
+                        <option>OBC</option>
+                        <option>SC</option>
+                        <option>ST</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+            </div>
+            <p class="form-help">Linked user: <strong>${user?.username || 'Unknown'}</strong> (${user?.email || 'no email'})</p>
+        `;
+        showGeneralModal('Create Student Profile', content, [
+            { label: 'Create & Continue', primary: true, onClick: () => submitQuickCreateStudentForApplication(applicationId, user?.user_id || null) }
+        ]);
+    } catch (_) {
+        const content = '<p style="color:#e74c3c;">Failed to load application details.</p>';
+        showGeneralModal('Create Student Profile', content);
+    }
+}
+
+async function submitQuickCreateStudentForApplication(applicationId, userId) {
+    const name = document.getElementById('qcsName')?.value?.trim();
+    const reg = document.getElementById('qcsReg')?.value?.trim();
+    const year = document.getElementById('qcsYear')?.value;
+    const dept = document.getElementById('qcsDept')?.value?.trim();
+    const cat = document.getElementById('qcsCat')?.value;
+    if (!name || !reg || !year) {
+        UIHelper.showAlert('Name, Reg No, and Year of Study are required', 'error');
+        return;
+    }
+    // Try to preserve chosen room for allocation retry
+    const roomIdVal = document.getElementById('aaRoom')?.value || '';
+    try {
+        const payload = {
+            user_id: userId || null,
+            name,
+            reg_no: reg,
+            year_of_study: parseInt(year),
+            department: dept || undefined,
+            category: cat || undefined
+        };
+        const resp = await API.call('/warden/students', { method: 'POST', body: JSON.stringify(payload) });
+        if (resp?.success) {
+            UIHelper.showAlert('Student profile created. Proceeding to allocate…', 'success');
+            // Retry approve & allocate with previously selected room
+            // Close current modal and reopen approve modal or directly call approve
+            closeGeneralModal();
+            // Reopen the approve modal to keep UX consistent and then auto-trigger
+            await openApproveApplicationModal(applicationId);
+            if (roomIdVal) {
+                const sel = document.getElementById('aaRoom');
+                if (sel) sel.value = roomIdVal;
+                await approveAndAllocate(applicationId);
+            }
+        } else {
+            UIHelper.showAlert(resp?.message || 'Failed to create student', 'error');
+        }
+    } catch (e) {
+        UIHelper.showAlert(e?.message || 'Error creating student', 'error');
     }
 }
 
@@ -1238,7 +1562,7 @@ async function loadStudentsIntoList() {
                     <div style="font-size:0.9rem; color:#666;">Year ${s.yearOfStudy}${s.department ? ' · ' + s.department : ''}${typeof s.sgpa === 'number' ? ' · SGPA ' + s.sgpa : ''}</div>
                 </div>
                 <div style="display:flex; gap:0.5rem;">
-                    <button class="btn btn-secondary" onclick="openStudentDetails(${s.studentId})">Details</button>
+                    <button class="btn btn-primary" onclick="openStudentDetails(${s.studentId})">Details</button>
                 </div>
             </div>
         `).join('');
@@ -1276,7 +1600,7 @@ async function openStudentDetails(studentId) {
 
         const actions = [];
         if (alloc && alloc.status === 'Active') {
-            actions.push({ label: 'Vacate Room', primary: false, onClick: () => vacateStudentRoom(studentId) });
+            actions.push({ label: 'Vacate Room', danger: true, onClick: () => vacateStudentRoom(studentId) });
         } else {
             actions.push({ label: 'Allocate Room', primary: true, onClick: () => { closeGeneralModal(); openAllocateRoomModal(); } });
         }
@@ -1503,8 +1827,8 @@ async function loadRoomsIntoList() {
                     <div style="font-size:0.9rem; color:#666;">Capacity: ${r.capacity || '-'} · Status: ${r.status}</div>
                 </div>
                 <div style="display:flex; gap:0.5rem;">
-                    <button class="btn btn-secondary" onclick="setRoomStatus(${r.roomId}, 'Under Maintenance')">Set Maintenance</button>
-                    <button class="btn btn-secondary" onclick="setRoomStatus(${r.roomId}, 'Vacant')">Mark Vacant</button>
+                    <button class="btn btn-primary" onclick="setRoomStatus(${r.roomId}, 'Under Maintenance')">Set Maintenance</button>
+                    <button class="btn btn-primary" onclick="setRoomStatus(${r.roomId}, 'Vacant')">Mark Vacant</button>
                 </div>
             </div>
         `).join('');
@@ -1527,6 +1851,11 @@ async function setRoomStatus(roomId, status) {
 async function openAllocateRoomModal() {
     const content = `
         <div class="form-row">
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Approved Applications</label>
+                <select id="allocApprovedApp" class="form-select"><option value="">Select approved applicant (optional)</option></select>
+                <div class="form-help">Pick an approved applicant to auto-fill student/room preferences, or allocate by Reg No.</div>
+            </div>
             <div class="form-group">
                 <label class="form-label">Student Reg No</label>
                 <input id="allocRegNo" type="text" class="form-input" placeholder="e.g., 22CS001" />
@@ -1535,12 +1864,18 @@ async function openAllocateRoomModal() {
                 <label class="form-label">Available Room</label>
                 <select id="allocRoomId" class="form-select"><option value="">Loading...</option></select>
             </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Auto-allocate</label>
+                <div>
+                    <input type="checkbox" id="allocAuto" /> <label for="allocAuto">Pick best available room automatically</label>
+                </div>
+            </div>
         </div>
     `;
     showGeneralModal('Allocate Room', content, [
         { label: 'Allocate', primary: true, onClick: submitAllocateRoom },
     ]);
-    await populateAvailableRooms();
+    await Promise.all([populateAvailableRooms(), populateApprovedApplications()]);
 }
 
 async function populateAvailableRooms() {
@@ -1565,12 +1900,32 @@ async function populateAvailableRooms() {
 async function submitAllocateRoom() {
     const regNo = document.getElementById('allocRegNo')?.value?.trim();
     const roomId = document.getElementById('allocRoomId')?.value;
-    if (!regNo || !roomId) {
-        UIHelper.showAlert('Please provide student register number and select a room', 'error');
-        return;
-    }
+    const appId = document.getElementById('allocApprovedApp')?.value || '';
+    const auto = document.getElementById('allocAuto')?.checked || false;
     try {
-        const resp = await API.call('/warden/allocate-room', { method: 'POST', body: JSON.stringify({ studentRegNo: regNo, roomId: parseInt(roomId) }) });
+        let resp;
+        if (appId) {
+            const payload = roomId ? { applicationId: appId, roomId: parseInt(roomId) } : (auto ? { applicationId: appId, autoAllocate: true } : null);
+            if (!payload) {
+                UIHelper.showAlert('Select a room or enable Auto-allocate', 'error');
+                return;
+            }
+            resp = await API.call('/warden/allocate-room/by-application', { method: 'POST', body: JSON.stringify(payload) });
+        } else {
+            if (!regNo) {
+                UIHelper.showAlert('Provide student Reg No or choose an approved applicant', 'error');
+                return;
+            }
+            if (!roomId && !auto) {
+                UIHelper.showAlert('Select a room or enable Auto-allocate', 'error');
+                return;
+            }
+            if (auto) {
+                UIHelper.showAlert('Auto-allocate is only supported for approved applications. Please select a room.', 'info');
+                return;
+            }
+            resp = await API.call('/warden/allocate-room', { method: 'POST', body: JSON.stringify({ studentRegNo: regNo, roomId: parseInt(roomId) }) });
+        }
         if (resp?.success) {
             UIHelper.showAlert('Room allocated successfully', 'success');
             closeGeneralModal();
@@ -1579,6 +1934,27 @@ async function submitAllocateRoom() {
         }
     } catch (e) {
         UIHelper.showAlert(e.message || 'Allocation failed', 'error');
+    }
+}
+
+async function populateApprovedApplications() {
+    try {
+        const data = await API.call('/warden/approved-applications', { method: 'GET' });
+        const apps = data?.data?.applications || [];
+        const sel = document.getElementById('allocApprovedApp');
+        if (!sel) return;
+        if (!apps.length) {
+            sel.innerHTML = '<option value="">No approved applications</option>';
+            return;
+        }
+        sel.innerHTML = '<option value="">Select approved applicant (optional)</option>' + apps.map(a => {
+            const tag = a.studentRegNo ? `${a.studentRegNo}` : (a.username || 'user#' + a.userId);
+            const info = `${a.course || ''} ${a.academicYear ? '· Y' + a.academicYear : ''}`.trim();
+            return `<option value="${a.applicationId}">${tag} ${info ? '· ' + info : ''}</option>`;
+        }).join('');
+    } catch (e) {
+        const sel = document.getElementById('allocApprovedApp');
+        if (sel) sel.innerHTML = '<option value="">Failed to load approved applications</option>';
     }
 }
 

@@ -25,15 +25,35 @@ router.get('/status', authenticateToken, async (req, res) => {
         
     // Check if student has an active room allocation
     const allocation = await RoomAllotmentModel.findActiveByStudent(student.student_id);
-        
+
         if (allocation) {
+            const roomNo = allocation?.rooms?.room_no || allocation?.room_no || null;
+            const capacity = allocation?.rooms?.capacity ?? allocation?.capacity ?? null;
+            const hostelName = allocation?.rooms?.hostels?.hostel_name || allocation?.hostel_name || null;
+            const hostelType = allocation?.rooms?.hostels?.hostel_type || allocation?.hostel_type || null;
+            const location = allocation?.rooms?.hostels?.location || allocation?.location || null;
+            // Compute floor from numeric part of room number
+            let floorNum = undefined;
+            if (roomNo) {
+              const match = String(roomNo).match(/(\d+)/);
+              if (match && match[1]) {
+                const num = parseInt(match[1], 10);
+                if (!isNaN(num) && num > 0) floorNum = Math.floor(num / 100) || 1;
+              }
+            }
+
             return res.json({
                 isAllocated: true,
-                roomNumber: allocation.room_no || allocation.roomNo || null,
-                hostelName: allocation.hostel_name || allocation.hostelName || null,
-                hostelType: allocation.hostel_type || allocation.hostelType || null,
+                roomNumber: roomNo,
+                hostelName,
+                hostelType,
+                location,
                 allocationDate: allocation.allotment_date || allocation.allotmentDate || null,
-                status: allocation.status
+                status: allocation.status,
+                // Extra fields to help UI show consistent details
+                roomType: capacity ? `${capacity}-person room` : undefined,
+                occupancy: capacity ? `${capacity} max` : undefined,
+                floor: floorNum
             });
         }
         
@@ -358,28 +378,44 @@ router.get('/my-room', authenticateToken, async (req, res) => {
       });
     }
     
-    console.log('✅ Room allocation found:', {
-      studentId: student.student_id,
-      roomNo: allocation.room_no,
-      hostel: allocation.hostel_name
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        hasAllocation: true,
-        allocation: {
-          roomNumber: allocation.room_no,
-          hostelName: allocation.hostel_name,
-          hostelType: allocation.hostel_type,
-          location: allocation.location,
-          capacity: allocation.capacity,
-          allottedDate: allocation.allotment_date,
-          status: allocation.status,
-          floor: Math.floor(parseInt(allocation.room_no) / 100) || 1 // Calculate floor from room number
+        const roomNo = allocation?.rooms?.room_no || allocation?.room_no || null;
+        const capacity = allocation?.rooms?.capacity ?? allocation?.capacity ?? null;
+        const hostelName = allocation?.rooms?.hostels?.hostel_name || allocation?.hostel_name || null;
+        const hostelType = allocation?.rooms?.hostels?.hostel_type || allocation?.hostel_type || null;
+        const location = allocation?.rooms?.hostels?.location || allocation?.location || null;
+
+        console.log('✅ Room allocation found:', {
+            studentId: student.student_id,
+            roomNo,
+            hostel: hostelName
+        });
+
+        // Compute floor robustly: extract numeric part (e.g., A-305 -> 305 -> floor 3)
+        let floorNum = 1;
+        if (roomNo) {
+            const match = String(roomNo).match(/(\d+)/);
+            if (match && match[1]) {
+                const num = parseInt(match[1], 10);
+                if (!isNaN(num) && num > 0) floorNum = Math.floor(num / 100) || 1;
+            }
         }
-      }
-    });
+
+        res.json({
+            success: true,
+            data: {
+                hasAllocation: true,
+                allocation: {
+                    roomNumber: roomNo,
+                    hostelName,
+                    hostelType,
+                    location,
+                    capacity,
+                    allottedDate: allocation.allotment_date,
+                    status: allocation.status,
+                    floor: floorNum
+                }
+            }
+        });
   } catch (error) {
     console.error('Get room allocation error:', error.message);
     res.status(500).json({

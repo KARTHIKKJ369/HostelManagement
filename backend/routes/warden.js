@@ -190,14 +190,99 @@ router.get('/maintenance-history', authenticateToken, requireWardenRole, async (
   }
 });
 
+// GET /api/warden/recent-activity - Aggregate latest warden actions
+router.get('/recent-activity', authenticateToken, requireWardenRole, async (req, res) => {
+  try {
+    const wardenId = req.user.userId;
+    const items = [];
+
+    // Recent reviewed applications by this warden
+    try {
+      const apps = await supabase
+        .from('allotment_applications')
+        .select('application_id, status, reviewed_at, allocated_room_id')
+        .eq('reviewed_by', wardenId)
+        .order('reviewed_at', { ascending: false })
+        .limit(5);
+      for (const a of apps.data || []) {
+        items.push({
+          type: 'application',
+          status: a.status,
+          at: a.reviewed_at,
+          detail: a.allocated_room_id ? `Allocated room ${a.allocated_room_id}` : `Marked ${a.status}`
+        });
+      }
+    } catch (_) {}
+
+    // Recent maintenance approvals by this warden (via assigned_to notes)
+    try {
+      const maint = await supabase
+        .from('maintenance_requests')
+        .select('request_id, status, updated_at, assigned_to')
+        .ilike('assigned_to', `%${req.user.username || 'Warden'}%`)
+        .order('updated_at', { ascending: false })
+        .limit(5);
+      for (const m of maint.data || []) {
+        items.push({ type: 'maintenance', status: m.status, at: m.updated_at, detail: `Request #${m.request_id} ${m.status}` });
+      }
+    } catch (_) {}
+
+    // Recent announcements sent by this warden
+    try {
+      const notifs = await supabase
+        .from('notifications')
+        .select('notification_id, title, created_at')
+        .eq('sender_id', wardenId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      for (const n of notifs.data || []) {
+        items.push({ type: 'announcement', at: n.created_at, detail: n.title });
+      }
+    } catch (_) {}
+
+    // Sort combined by time desc and trim
+    items.sort((a, b) => new Date(b.at) - new Date(a.at));
+    res.json({ success: true, data: { items: items.slice(0, 10) } });
+  } catch (error) {
+    console.error('❌ Error fetching recent activity:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch recent activity' });
+  }
+});
+
 // GET /api/warden/pending-applications - Get pending allotment applications
 router.get('/pending-applications', authenticateToken, requireWardenRole, async (req, res) => {
   try {
     console.log('📋 Fetching pending allotment applications...');
 
     const applications = await AllotmentApplicationModel.findAll({ status: 'pending' });
+    // Helper to compute a priority score based on performance, distance and wait time
+    const scoreFor = (app) => {
+      let score = 0;
+      const perfType = (app.performance_type || '').toLowerCase();
+      const perfVal = Number(app.performance_value || 0);
+      if (perfType === 'sgpa') {
+        // SGPA 0-10 → scale to 0-50
+        score += Math.max(0, Math.min(10, perfVal)) * 5;
+      } else if (perfType === 'rank' || perfType === 'keam_rank' || perfType === 'rank_keam') {
+        // Lower rank better. Cap at 50000, map to 0-40 (best rank → highest score)
+        const cap = Math.min(50000, Math.max(0, perfVal));
+        score += Math.max(0, 40 - (cap / 1250));
+      }
+      const dist = (app.distance_from_home || '').toString();
+      if (/>\s*50/i.test(dist) || dist.includes('>50') || dist.includes('> 50')) score += 20;
+      else if (/25\s*-\s*50/i.test(dist) || dist.includes('25-50')) score += 10;
+      else if (/<\s*25/i.test(dist) || dist.includes('<25')) score += 0;
+      const days = Math.floor((new Date() - new Date(app.created_at)) / (1000*60*60*24));
+      score += Math.max(0, Math.min(30, days)); // waiting time bonus up to 30
+      const yr = parseInt(app.academic_year || app.year || 0);
+      if (!isNaN(yr) && yr >= 4) score += 5; // seniority small boost
+      return Math.round(score * 100) / 100;
+    };
 
-    const formattedApplications = applications.map(app => ({
+    const formattedApplications = applications.map(app => {
+      const priorityScore = scoreFor(app);
+      const priorityLabel = priorityScore >= 50 ? 'High' : (priorityScore >= 25 ? 'Medium' : 'Low');
+      return {
       applicationId: app.application_id,
       userId: app.user_id,
       preferredHostelId: app.preferred_hostel_id,
@@ -208,11 +293,17 @@ router.get('/pending-applications', authenticateToken, requireWardenRole, async 
       performanceValue: app.performance_value,
       distanceFromHome: app.distance_from_home,
       createdAt: app.created_at,
-      daysSinceApplied: Math.floor((new Date() - new Date(app.created_at)) / (1000 * 60 * 60 * 24))
-    }));
+      daysSinceApplied: Math.floor((new Date() - new Date(app.created_at)) / (1000 * 60 * 60 * 24)),
+      priorityScore,
+      priority: priorityLabel
+    };
+    });
 
-    // Sort by creation date (oldest first for fairness)
-    formattedApplications.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    // Sort by priority score (desc), then by oldest application date
+    formattedApplications.sort((a, b) => {
+      if (b.priorityScore !== a.priorityScore) return b.priorityScore - a.priorityScore;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
 
     console.log(`✅ Found ${formattedApplications.length} pending applications`);
     res.json(formattedApplications);
@@ -256,7 +347,7 @@ router.post('/approve-application/:applicationId', authenticateToken, requireWar
   try {
     const { applicationId } = req.params;
     const wardenId = req.user.userId;
-    const { roomId } = req.body; // Room ID should be provided by warden
+    const { roomId, autoAllocate } = req.body; // Room ID or autoAllocate flag
     
     console.log(`📋 Approving application ${applicationId} by warden ${wardenId}`);
 
@@ -266,13 +357,46 @@ router.post('/approve-application/:applicationId', authenticateToken, requireWar
       return res.status(404).json({ message: 'Application not found' });
     }
 
-    // If roomId provided, create room allotment
-    if (roomId) {
-      console.log(`🏠 Creating room allotment for student ${application.user_id} in room ${roomId}`);
+    // Resolve target student_id from application.user_id
+    let targetStudentId = null;
+    try {
+      const student = await StudentModel.findByUserId(application.user_id);
+      if (student) targetStudentId = student.student_id;
+    } catch (_) {}
+
+    // If roomId provided or auto-allocate requested, create room allotment (requires student record)
+    let finalRoomId = roomId;
+    if (!finalRoomId && autoAllocate) {
+      // Choose an available room, prefer preferred_hostel_id when present
+      try {
+        const available = await RoomModel.findAvailable();
+        let choices = available || [];
+        if (application.preferred_hostel_id) {
+          choices = choices.filter(r => (r.hostel_id || r.hostels?.hostel_id) === application.preferred_hostel_id);
+        }
+        if (!choices.length) choices = available || [];
+        if (!choices.length) {
+          return res.status(400).json({ message: 'No available rooms to auto-allocate' });
+        }
+        // Simple heuristic: pick room with most available spots, then by room_no asc
+        choices.sort((a,b) => (b.available_spots || ((b.capacity||0)-(b.current_occupants||0))) - (a.available_spots || ((a.capacity||0)-(a.current_occupants||0))) || String(a.room_no).localeCompare(String(b.room_no)));
+        finalRoomId = choices[0].room_id || choices[0].roomId;
+      } catch (e) {
+        return res.status(400).json({ message: 'Failed auto-allocation: ' + (e.message || 'Unknown error') });
+      }
+    }
+
+    if (finalRoomId) {
+      if (!targetStudentId) {
+        return res.status(400).json({ message: 'Student profile not found for this applicant. Please create the student record first.' });
+      }
+      console.log(`🏠 Creating room allotment for student ${targetStudentId} in room ${finalRoomId}`);
       
       try {
-        const allotment = await RoomAllotmentModel.createAllotment(application.user_id, roomId);
+        const allotment = await RoomAllotmentModel.createAllotment(parseInt(targetStudentId), parseInt(finalRoomId));
         console.log('✅ Room allotment created:', allotment);
+        // Update room status post-allocation based on occupancy
+        try { await RoomModel.updateStatusByOccupancy(parseInt(finalRoomId)); } catch (_) {}
       } catch (allotmentError) {
         console.error('❌ Failed to create room allotment:', allotmentError.message);
         return res.status(400).json({ 
@@ -281,12 +405,17 @@ router.post('/approve-application/:applicationId', authenticateToken, requireWar
       }
     }
 
-    // Update the application status to approved
-    const updatedApp = await AllotmentApplicationModel.update(applicationId, {
-      status: 'approved',
+    // Update the application status (allocated if room assigned, otherwise approved)
+    const updatePayload = {
+      status: (roomId || autoAllocate) ? 'allocated' : 'approved',
       reviewed_by: wardenId,
       reviewed_at: new Date().toISOString()
-    }, 'application_id');
+    };
+    if (roomId || autoAllocate) {
+      updatePayload.allocated_room_id = parseInt(roomId || finalRoomId);
+      updatePayload.allocated_at = new Date().toISOString();
+    }
+    const updatedApp = await AllotmentApplicationModel.update(applicationId, updatePayload, 'application_id');
 
     console.log('✅ Application approved successfully');
     res.json({ 
@@ -298,6 +427,98 @@ router.post('/approve-application/:applicationId', authenticateToken, requireWar
   } catch (error) {
     console.error('❌ Error approving application:', error);
     res.status(500).json({ message: 'Failed to approve application' });
+  }
+});
+
+// GET /api/warden/approved-applications - list approved applications (not yet allocated)
+router.get('/approved-applications', authenticateToken, requireWardenRole, async (req, res) => {
+  try {
+    const apps = await AllotmentApplicationModel.findAll({ status: 'approved' });
+    const results = [];
+    for (const app of apps || []) {
+      let user = null; let student = null;
+      try { user = await UserModel.findById(app.user_id, 'user_id'); } catch (_) {}
+      try { student = await StudentModel.findByUserId(app.user_id); } catch (_) {}
+      results.push({
+        applicationId: app.application_id,
+        userId: app.user_id,
+        course: app.course,
+        academicYear: app.academic_year,
+        roomTypePreference: app.room_type_preference,
+        preferredHostelId: app.preferred_hostel_id,
+        reviewedAt: app.reviewed_at,
+        username: user?.username || null,
+        email: user?.email || null,
+        studentId: student?.student_id || null,
+        studentName: student?.name || null,
+        studentRegNo: student?.reg_no || null
+      });
+    }
+    res.json({ success: true, data: { applications: results } });
+  } catch (e) {
+    console.error('❌ Error listing approved applications:', e.message);
+    res.status(500).json({ success: false, message: 'Failed to list approved applications' });
+  }
+});
+
+// POST /api/warden/allocate-room/by-application - allocate room for an approved application
+router.post('/allocate-room/by-application', authenticateToken, requireWardenRole, async (req, res) => {
+  try {
+    const { applicationId, roomId, autoAllocate } = req.body;
+    if (!applicationId) return res.status(400).json({ success: false, message: 'applicationId is required' });
+
+    const application = await AllotmentApplicationModel.findById(applicationId, 'application_id');
+    if (!application) return res.status(404).json({ success: false, message: 'Application not found' });
+    if (application.status !== 'approved') return res.status(400).json({ success: false, message: 'Application is not in approved state' });
+
+    // Resolve student
+    const student = await StudentModel.findByUserId(application.user_id);
+    if (!student) return res.status(400).json({ success: false, message: 'Student profile not found for this applicant. Please create it first.' });
+
+    // Determine room
+    let finalRoomId = roomId;
+    if (!finalRoomId && autoAllocate) {
+      const available = await RoomModel.findAvailable();
+      let choices = available || [];
+      if (application.preferred_hostel_id) {
+        choices = choices.filter(r => (r.hostel_id || r.hostels?.hostel_id) === application.preferred_hostel_id);
+      }
+      if (!choices.length) choices = available || [];
+      if (!choices.length) return res.status(400).json({ success: false, message: 'No available rooms to auto-allocate' });
+      choices.sort((a,b) => (b.available_spots || ((b.capacity||0)-(b.current_occupants||0))) - (a.available_spots || ((a.capacity||0)-(a.current_occupants||0))) || String(a.room_no).localeCompare(String(b.room_no)));
+      finalRoomId = choices[0].room_id || choices[0].roomId;
+    }
+
+    if (!finalRoomId) return res.status(400).json({ success: false, message: 'roomId or autoAllocate is required' });
+
+    const allotment = await RoomAllotmentModel.createAllotment(parseInt(student.student_id), parseInt(finalRoomId));
+    try { await RoomModel.updateStatusByOccupancy(parseInt(finalRoomId)); } catch (_) {}
+
+    const updatedApp = await AllotmentApplicationModel.update(applicationId, {
+      status: 'allocated',
+      allocated_room_id: parseInt(finalRoomId),
+      allocated_at: new Date().toISOString()
+    }, 'application_id');
+
+    res.json({ success: true, message: 'Room allocated successfully', data: { allotment, application: updatedApp } });
+  } catch (e) {
+    console.error('❌ Error allocating by application:', e.message);
+    res.status(400).json({ success: false, message: e.message || 'Allocation failed' });
+  }
+});
+
+// GET /api/warden/applications/:applicationId - fetch one application with applicant user info
+router.get('/applications/:applicationId', authenticateToken, requireWardenRole, async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const app = await AllotmentApplicationModel.findById(applicationId, 'application_id');
+    if (!app) return res.status(404).json({ success: false, message: 'Application not found' });
+    let user = null;
+    try { user = await UserModel.findById(app.user_id, 'user_id'); } catch (_) {}
+    res.json({ success: true, application: app, user: user ? { user_id: user.user_id, username: user.username, email: user.email, role: user.role } : null });
+  } catch (e) {
+    console.error('❌ Get application details error:', e.message);
+    res.status(500).json({ success: false, message: 'Failed to load application' });
   }
 });
 
@@ -314,8 +535,7 @@ router.post('/reject-application/:applicationId', authenticateToken, requireWard
     const updatedApp = await AllotmentApplicationModel.update(applicationId, {
       status: 'rejected',
       reviewed_by: wardenId,
-      reviewed_at: new Date().toISOString(),
-      rejection_reason: reason || 'No reason provided'
+      reviewed_at: new Date().toISOString()
     }, 'application_id');
     
     if (!updatedApp) {
@@ -326,7 +546,8 @@ router.post('/reject-application/:applicationId', authenticateToken, requireWard
     res.json({ 
       success: true, 
       message: 'Application rejected successfully',
-      application: updatedApp 
+      application: updatedApp,
+      note: reason ? `Rejection note: ${reason}` : undefined
     });
 
   } catch (error) {
