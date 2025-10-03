@@ -482,9 +482,9 @@ function downloadCSV(filename, header, rows) {
 async function openOccupancyReportModal() {
     const container = `<div id="occReport" class="modal-content-container"></div>`;
     showGeneralModal('Occupancy Analytics', container, [
-        { label: 'Download PDF', onClick: () => exportOccupancyPDF(), primary: false },
-        { label: 'Download CSV', onClick: () => exportOccupancyCSV(), primary: false },
-        { label: 'Refresh', onClick: () => loadOccupancyReport(), primary: false }
+        { label: 'Download PDF', onClick: () => exportOccupancyPDF(), primary: true },
+        { label: 'Download CSV', onClick: () => exportOccupancyCSV(), primary: true },
+        { label: 'Refresh', onClick: () => loadOccupancyReport(), primary: true }
     ]);
     await loadOccupancyReport();
 }
@@ -561,9 +561,9 @@ function exportOccupancyPDF() {
 async function openMaintenanceReportModal() {
     const container = `<div id="mntReport" class="modal-content-container"></div>`;
     showGeneralModal('Maintenance Analytics (30 days)', container, [
-        { label: 'Download PDF', onClick: () => exportMaintenancePDF(), primary: false },
-        { label: 'Download CSV', onClick: () => exportMaintenanceCSV(), primary: false },
-        { label: 'Refresh', onClick: () => loadMaintenanceReport(), primary: false }
+        { label: 'Download PDF', onClick: () => exportMaintenancePDF(), primary: true },
+        { label: 'Download CSV', onClick: () => exportMaintenanceCSV(), primary: true },
+        { label: 'Refresh', onClick: () => loadMaintenanceReport(), primary: true }
     ]);
     await loadMaintenanceReport();
 }
@@ -634,9 +634,9 @@ function exportMaintenancePDF() {
 async function openStudentReportModal() {
     const container = `<div id="stuReport" class="modal-content-container"></div>`;
     showGeneralModal('Student Analytics', container, [
-        { label: 'Download PDF', onClick: () => exportStudentsPDF(), primary: false },
-        { label: 'Download CSV', onClick: () => exportStudentsCSV(), primary: false },
-        { label: 'Refresh', onClick: () => loadStudentReport(), primary: false }
+        { label: 'Download PDF', onClick: () => exportStudentsPDF(), primary: true },
+        { label: 'Download CSV', onClick: () => exportStudentsCSV(), primary: true },
+        { label: 'Refresh', onClick: () => loadStudentReport(), primary: true }
     ]);
     await loadStudentReport();
 }
@@ -751,9 +751,9 @@ function printReport(title, bodyHtml) {
 async function openFinancialReportModal() {
     const container = `<div id="finReport" class="modal-content-container"></div>`;
     showGeneralModal('Financial Report', container, [
-        { label: 'Download PDF', onClick: () => exportFinancePDF(), primary: false },
-        { label: 'Download CSV', onClick: () => exportFinanceCSV(), primary: false },
-        { label: 'Refresh', onClick: () => loadFinancialReport(), primary: false }
+        { label: 'Download PDF', onClick: () => exportFinancePDF(), primary: true },
+        { label: 'Download CSV', onClick: () => exportFinanceCSV(), primary: true },
+        { label: 'Refresh', onClick: () => loadFinancialReport(), primary: true }
     ]);
     await loadFinancialReport();
 }
@@ -940,6 +940,7 @@ async function submitCreateAnnouncement() {
             UIHelper.showAlert('Announcement published', 'success');
             closeGeneralModal();
             await WardenDashboard.loadRecentAnnouncements();
+            await WardenDashboard.loadRecentActivity();
         }
     } catch (e) {
         UIHelper.showAlert(e.message || 'Failed to publish announcement', 'error');
@@ -949,7 +950,7 @@ async function submitCreateAnnouncement() {
 async function openAnnouncementsListModal() {
     const container = `<div id="anList" class="modal-content-container"></div>`;
     showGeneralModal('All Announcements', container, [
-        { label: 'Refresh', onClick: () => loadAnnouncementsIntoList(), primary: false }
+        { label: 'Refresh', onClick: () => loadAnnouncementsIntoList(), primary: true }
     ]);
     await loadAnnouncementsIntoList();
 }
@@ -1028,6 +1029,7 @@ async function submitEmergencyAlert() {
             UIHelper.showAlert('Emergency alert sent', 'success');
             closeGeneralModal();
             await WardenDashboard.loadRecentAnnouncements?.();
+            await WardenDashboard.loadRecentActivity();
         }
     } catch (e) {
         UIHelper.showAlert(e.message || 'Failed to send alert', 'error');
@@ -1051,6 +1053,7 @@ async function submitBulkNotification() {
             UIHelper.showAlert('Notification sent', 'success');
             closeGeneralModal();
             await WardenDashboard.loadRecentAnnouncements?.();
+            await WardenDashboard.loadRecentActivity();
         }
     } catch (e) {
         UIHelper.showAlert(e.message || 'Failed to send notification', 'error');
@@ -1069,6 +1072,7 @@ async function submitRoomInspection() {
             UIHelper.showAlert('Inspection scheduled and announced', 'success');
             closeGeneralModal();
             await WardenDashboard.loadRecentAnnouncements?.();
+            await WardenDashboard.loadRecentActivity();
         }
     } catch (e) {
         UIHelper.showAlert(e.message || 'Failed to schedule inspection', 'error');
@@ -1085,6 +1089,7 @@ async function submitUpdateRules() {
             UIHelper.showAlert('Rules updated and announced', 'success');
             closeGeneralModal();
             await WardenDashboard.loadRecentAnnouncements?.();
+            await WardenDashboard.loadRecentActivity();
         }
     } catch (e) {
         UIHelper.showAlert(e.message || 'Failed to publish rules', 'error');
@@ -1282,7 +1287,7 @@ async function openMaintenanceHistoryModal() {
         <div id="mhList" class="modal-content-container"></div>
     `;
     showGeneralModal('Maintenance History', controls, [
-        { label: 'Refresh', onClick: () => loadMaintenanceHistory(), primary: false }
+        { label: 'Refresh', onClick: () => loadMaintenanceHistory(), primary: true }
     ]);
     document.getElementById('mhStatus').addEventListener('change', loadMaintenanceHistory);
     await loadMaintenanceHistory();
@@ -1530,7 +1535,7 @@ async function openStudentsListModal() {
         <div id="studentsList" class="modal-content-container"></div>
     `;
     showGeneralModal('Students', content, [
-        { label: 'Refresh', onClick: () => loadStudentsIntoList(), primary: false }
+        { label: 'Refresh', onClick: () => loadStudentsIntoList(), primary: true }
     ]);
     document.getElementById('stuSearchName').addEventListener('input', debounce(loadStudentsIntoList, 300));
     document.getElementById('stuSearchReg').addEventListener('input', debounce(loadStudentsIntoList, 300));
@@ -1796,7 +1801,7 @@ async function openManageRoomsModal() {
         <div id="roomsList" class="modal-content-container"></div>
     `;
     showGeneralModal('Manage Rooms', filterHtml, [
-        { label: 'Refresh', onClick: () => loadRoomsIntoList(), primary: false }
+        { label: 'Refresh', onClick: () => loadRoomsIntoList(), primary: true }
     ]);
     // initial load
     await loadRoomsIntoList();
