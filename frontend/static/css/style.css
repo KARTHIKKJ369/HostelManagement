@@ -135,6 +135,43 @@ body {
     box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
 }
 
+/* Ensure success/danger styles apply regardless of element type or context */
+button.btn-success,
+.btn.btn-success,
+input[type="button"].btn-success,
+input[type="submit"].btn-success {
+    background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+    border: none;
+}
+button.btn-success:hover,
+.btn.btn-success:hover,
+input[type="button"].btn-success:hover,
+input[type="submit"].btn-success:hover {
+    background: linear-gradient(135deg, #229954 0%, #27ae60 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+}
+
+button.btn-danger,
+.btn.btn-danger,
+input[type="button"].btn-danger,
+input[type="submit"].btn-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
+    border: none;
+}
+button.btn-danger:hover,
+.btn.btn-danger:hover,
+input[type="button"].btn-danger:hover,
+input[type="submit"].btn-danger:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
+}
+
 .dashboard-card .btn-secondary {
     background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
     border: none;
@@ -244,6 +281,31 @@ body {
     background: linear-gradient(135deg, #7f8c8d 0%, #6c7b7d 100%);
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(149, 165, 166, 0.4);
+}
+
+/* Global success and danger buttons (used in lists and modals) */
+.btn-success {
+    background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+    border: none;
+}
+.btn-success:hover {
+    background: linear-gradient(135deg, #229954 0%, #27ae60 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
+    border: none;
+}
+.btn-danger:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
 }
 
 .container {

@@ -156,7 +156,15 @@
     <div id="allotmentModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🏨 Hostel Allotment Registration</h3>
+                <h3>
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-right:6px;">
+                        <rect x="3" y="7" width="18" height="13" rx="2" ry="2"></rect>
+                        <path d="M7 7V5a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v2"></path>
+                        <path d="M7 10h10"></path>
+                        <path d="M7 14h10"></path>
+                    </svg>
+                    Hostel Allotment Registration
+                </h3>
                 <span class="close" onclick="closeAllotmentModal()">&times;</span>
             </div>
             <div class="modal-body">
@@ -341,47 +349,7 @@
         </div>
     </div>
 
-    <!-- General Modal -->
-    <div id="generalModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="generalModalTitle">Information</h3>
-                <span class="close" onclick="closeGeneralModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="generalModalContent">
-                    <!-- Content will be populated dynamically -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeGeneralModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Room Details Modal -->
-    <div id="roomDetailsModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>
-                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
-                        <path d="M3 9l9-7 9 7"/>
-                        <path d="M9 22V12h6v10"/>
-                    </svg>
-                    Room Details
-                </h3>
-                <span class="close" onclick="closeRoomDetailsModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="roomDetailsContent">
-                    <!-- Room details will be populated here -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeRoomDetailsModal()">Close</button>
-            </div>
-        </div>
-    </div>
+    <!-- Removed duplicate General and Room Details modals to prevent duplicate Close buttons -->
 
     <!-- Change Password Modal -->
     <div id="changePasswordModal" class="modal" style="display: none;">
@@ -455,7 +423,7 @@
         </div>
     </div>
 
-    <!-- General Purpose Modal -->
+    <!-- General Purpose Modal (single source of truth) -->
     <div id="generalModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -477,7 +445,13 @@
     <div id="editProfileModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>✏️ Edit Profile</h3>
+                <h3>
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-right:6px;">
+                        <path d="M12 20h9"/>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                    </svg>
+                    Edit Profile
+                </h3>
                 <span class="close" onclick="closeEditProfileModal()">&times;</span>
             </div>
             <div class="modal-body">
@@ -511,11 +485,17 @@
         </div>
     </div>
 
-    <!-- Room Details Modal -->
+    <!-- Room Details Modal (single) -->
     <div id="roomDetailsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🏠 Room Details</h3>
+                <h3>
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-right:6px;">
+                        <path d="M3 9l9-7 9 7"/>
+                        <path d="M9 22V12h6v10"/>
+                    </svg>
+                    Room Details
+                </h3>
                 <span class="close" onclick="closeRoomDetailsModal()">&times;</span>
             </div>
             <div class="modal-body">

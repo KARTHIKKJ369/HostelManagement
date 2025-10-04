@@ -177,10 +177,17 @@ const WardenDashboard = {
                 pendingCountEl.textContent = pendingCount;
             }
 
-            // Get total requests this month (mock data for now)
+            // Get total requests this month from backend
             const totalCountEl = document.getElementById('totalRequestsCount');
             if (totalCountEl) {
-                totalCountEl.textContent = pendingCount + Math.floor(Math.random() * 15); // Mock total
+                try {
+                    const monthly = await API.call('/warden/maintenance-monthly', { method: 'GET' });
+                    const total = monthly?.data?.totalThisMonth ?? 0;
+                    totalCountEl.textContent = total;
+                } catch (e) {
+                    console.warn('Failed to load monthly maintenance total, falling back to pending count', e);
+                    totalCountEl.textContent = pendingCount || 0;
+                }
             }
 
             const maintenanceQueueDiv = document.getElementById('maintenanceQueue');
@@ -191,9 +198,7 @@ const WardenDashboard = {
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="flex: 1;">
                                     <strong>${req.description || req.category}</strong>
-                                    <div style="font-size: 0.9rem; color: #666;">
-                                        ${req.studentName} - Room ${req.roomNumber} | ${req.priority} Priority
-                                        ${req.daysSinceCreated > 0 ? ` | ${req.daysSinceCreated} days ago` : ' | Today'}
+                                        <span style="color:#666;">${req.studentName} - Room ${req.roomNumber} | ${req.priority} Priority${req.status ? ' | ' + req.status : ''}${req.daysSinceCreated > 0 ? ` | ${req.daysSinceCreated} days ago` : ' | Today'}</span>
                                     </div>
                                 </div>
                                 <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="approveRequest(${req.requestId})">
@@ -235,7 +240,9 @@ const WardenDashboard = {
 
             const studentsWithRoomsEl = document.getElementById('studentsWithRoomsDisplay');
             if (studentsWithRoomsEl) {
-                studentsWithRoomsEl.textContent = stats.occupiedRooms || 0;
+                // Prefer backend-provided studentsWithRooms (active allotments) and fallback to occupiedRooms count
+                const withRooms = typeof stats.studentsWithRooms === 'number' ? stats.studentsWithRooms : (stats.occupiedRooms || 0);
+                studentsWithRoomsEl.textContent = withRooms || 0;
             }
 
             const studentSummaryDiv = document.getElementById('studentSummary');
@@ -244,7 +251,7 @@ const WardenDashboard = {
                     <div style="margin: 1rem 0;">
                         <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.9rem;">
                             <p><strong>${stats.totalStudents || 0}</strong> total students</p>
-                            <p><strong>${stats.occupiedRooms || 0}</strong> students with rooms</p>
+                            <p><strong>${(typeof stats.studentsWithRooms === 'number' ? stats.studentsWithRooms : (stats.occupiedRooms || 0))}</strong> students with rooms</p>
                         </div>
                         <p style="margin-top: 0.5rem; font-size: 0.9rem; color: ${stats.pendingRequests > 0 ? '#e74c3c' : '#27ae60'};">
                             <strong>${stats.pendingRequests || 0}</strong> pending maintenance requests
@@ -811,12 +818,24 @@ function printReport(title, bodyHtml) {
 
 // ---- Financial Report ----
 async function openFinancialReportModal() {
-    const container = `<div id="finReport" class="modal-content-container"></div>`;
+    const container = `
+        <div class="form-row" style="margin-bottom:0.5rem;">
+            <div class="form-group">
+                <label class="form-label">Expenses Period</label>
+                <select id="finExpPeriod" class="form-select">
+                    <option value="month" selected>This Month</option>
+                    <option value="all">All Time</option>
+                </select>
+            </div>
+        </div>
+        <div id="finReport" class="modal-content-container"></div>`;
     showGeneralModal('Financial Report', container, [
         { label: 'Download PDF', onClick: () => exportFinancePDF(), primary: true },
         { label: 'Download CSV', onClick: () => exportFinanceCSV(), primary: true },
         { label: 'Refresh', onClick: () => loadFinancialReport(), primary: true }
     ]);
+    const sel = document.getElementById('finExpPeriod');
+    if (sel) sel.addEventListener('change', () => loadFinancialReport());
     await loadFinancialReport();
 }
 
@@ -825,13 +844,16 @@ async function loadFinancialReport() {
     if (!el) return;
     el.innerHTML = '<p style="color:#666;">Loading...</p>';
     try {
-        const [sumResp, feesResp] = await Promise.all([
+        const period = document.getElementById('finExpPeriod')?.value || 'month';
+        const [sumResp, feesResp, expResp] = await Promise.all([
             API.call('/warden/finance/summary', { method: 'GET' }),
-            API.call('/warden/finance/fees', { method: 'GET' })
+            API.call('/warden/finance/fees', { method: 'GET' }),
+            API.call(`/warden/finance/expenses?period=${encodeURIComponent(period)}`, { method: 'GET' })
         ]);
-        const summary = sumResp?.summary || sumResp?.data?.summary || { total_billed: 0, total_paid: 0, pending: 0, overdue: 0, monthlyPayments: 0, feesCount: 0 };
+        const summary = sumResp?.summary || sumResp?.data?.summary || { total_billed: 0, total_paid: 0, pending: 0, overdue: 0, monthlyPayments: 0, feesCount: 0, maintenance_expenses: 0, maintenance_expenses_month: 0 };
         const fees = feesResp?.fees || feesResp?.data?.fees || [];
-        __reportCache.finance = { summary, fees };
+        const expenses = expResp?.expenses || expResp?.data?.expenses || [];
+        __reportCache.finance = { summary, fees, expenses };
 
         const kpi = (label, value) => `<div style="padding:0.75rem; border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc;"><div style="font-size:0.8rem; color:#666;">${label}</div><div style="font-size:1.1rem; font-weight:600;">₹ ${Number(value || 0).toLocaleString()}</div></div>`;
         const kpis = `
@@ -841,6 +863,8 @@ async function loadFinancialReport() {
                 ${kpi('Pending', summary.pending)}
                 ${kpi('Overdue', summary.overdue)}
                 ${kpi('Payments This Month', summary.monthlyPayments)}
+                ${kpi('Maint. Expenses (Total)', summary.maintenance_expenses)}
+                ${kpi('Maint. Expenses (This Month)', summary.maintenance_expenses_month)}
             </div>`;
 
         const rows = fees.map(f => `
@@ -855,19 +879,40 @@ async function loadFinancialReport() {
                 <td>${f.paid_at ? new Date(f.paid_at).toLocaleDateString() : '-'}</td>
             </tr>`).join('');
 
-        el.innerHTML = `
-            ${kpis}
-            <div style="margin:0.25rem 0; color:#666;">${fees.length} fee record(s)</div>
-            <div class="table-responsive">
-              <table class="table">
-                <thead><tr><th>Student</th><th>Reg No</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th>Due</th><th>Paid At</th></tr></thead>
-                <tbody>${rows}</tbody>
-              </table>
-            </div>`;
-    } catch (e) {
-        console.error('Finance report load error:', e);
-        el.innerHTML = '<p style="color:#dc3545;">Failed to load financial report</p>';
-    }
+                const expRows = (expenses || []).map(x => `
+                        <tr>
+                                <td>₹ ${Number(x.amount || 0).toLocaleString()}</td>
+                                <td>${x.vendor || '-'}</td>
+                                <td>${x.description || '-'}</td>
+                                <td>${x.hostelName || '-'}</td>
+                                <td>${x.roomNo || '-'}</td>
+                                <td>${x.category || '-'}</td>
+                                <td>${x.status || '-'}</td>
+                                <td>${x.paidAt ? new Date(x.paidAt).toLocaleDateString() : '-'}</td>
+                                <td>${x.createdAt ? new Date(x.createdAt).toLocaleDateString() : '-'}</td>
+                        </tr>`).join('');
+
+                el.innerHTML = `
+                        ${kpis}
+                        <div style="margin:0.25rem 0; color:#666;">${fees.length} fee record(s)</div>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead><tr><th>Student</th><th>Reg No</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th>Due</th><th>Paid At</th></tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                        <div style="margin:0.75rem 0 0.25rem; font-weight:600;">Maintenance Expenses (${period === 'all' ? 'All Time' : 'This Month'})</div>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead><tr><th>Amount</th><th>Vendor</th><th>Description</th><th>Hostel</th><th>Room</th><th>Category</th><th>Status</th><th>Paid At</th><th>Created</th></tr></thead>
+                                <tbody>${expRows}</tbody>
+                            </table>
+                        </div>
+                        `;
+        } catch (e) {
+                console.error('Finance report load error:', e);
+                el.innerHTML = '<p style="color:#dc3545;">Failed to load financial report</p>';
+        }
 }
 
 function exportFinanceCSV() {
@@ -890,7 +935,7 @@ function exportFinanceCSV() {
 function exportFinancePDF() {
     const data = __reportCache.finance;
     if (!data) { UIHelper.showAlert('Load the report first', 'info'); return; }
-    const s = data.summary || { total_billed: 0, total_paid: 0, pending: 0, overdue: 0, monthlyPayments: 0 };
+    const s = data.summary || { total_billed: 0, total_paid: 0, pending: 0, overdue: 0, monthlyPayments: 0, maintenance_expenses: 0, maintenance_expenses_month: 0 };
     const rows = (data.fees || []).map(f => `
         <tr>
             <td>${f.students?.name || ''}</td>
@@ -902,12 +947,30 @@ function exportFinancePDF() {
             <td>${f.due_date ? new Date(f.due_date).toLocaleDateString() : '-'}</td>
             <td>${f.paid_at ? new Date(f.paid_at).toLocaleDateString() : '-'}</td>
         </tr>`).join('');
+    const period = (document.getElementById('finExpPeriod')?.value || 'month') === 'all' ? 'All Time' : 'This Month';
+    const expRows = (data.expenses || []).map(x => `
+        <tr>
+            <td>₹ ${Number(x.amount || 0).toLocaleString()}</td>
+            <td>${x.vendor || ''}</td>
+            <td>${x.description || ''}</td>
+            <td>${x.hostelName || ''}</td>
+            <td>${x.roomNo || ''}</td>
+            <td>${x.category || ''}</td>
+            <td>${x.status || ''}</td>
+            <td>${x.paidAt ? new Date(x.paidAt).toLocaleDateString() : '-'}</td>
+            <td>${x.createdAt ? new Date(x.createdAt).toLocaleDateString() : '-'}</td>
+        </tr>`).join('');
     const html = `
         <h1>Financial Report</h1>
-        <div class="summary">Total Billed ₹ ${Number(s.total_billed).toLocaleString()} · Total Paid ₹ ${Number(s.total_paid).toLocaleString()} · Pending ₹ ${Number(s.pending).toLocaleString()} · Overdue ₹ ${Number(s.overdue).toLocaleString()} · Payments This Month ₹ ${Number(s.monthlyPayments).toLocaleString()}</div>
+        <div class="summary">Total Billed ₹ ${Number(s.total_billed).toLocaleString()} · Total Paid ₹ ${Number(s.total_paid).toLocaleString()} · Pending ₹ ${Number(s.pending).toLocaleString()} · Overdue ₹ ${Number(s.overdue).toLocaleString()} · Payments This Month ₹ ${Number(s.monthlyPayments).toLocaleString()} · Maint Exp (Total) ₹ ${Number(s.maintenance_expenses || 0).toLocaleString()} · Maint Exp (This Month) ₹ ${Number(s.maintenance_expenses_month || 0).toLocaleString()}</div>
         <table class="report-table">
             <thead><tr><th>Student</th><th>Reg No</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th>Due</th><th>Paid At</th></tr></thead>
             <tbody>${rows}</tbody>
+        </table>
+        <h2>Maintenance Expenses (${period})</h2>
+        <table class="report-table">
+            <thead><tr><th>Amount</th><th>Vendor</th><th>Description</th><th>Hostel</th><th>Room</th><th>Category</th><th>Status</th><th>Paid At</th><th>Created</th></tr></thead>
+            <tbody>${expRows || '<tr><td colspan="9">No expenses</td></tr>'}</tbody>
         </table>`;
     printReport('Financial_Report', html);
 }
@@ -1177,6 +1240,10 @@ async function approveRequest(requestId) {
             await WardenDashboard.loadMaintenanceQueue();
             await WardenDashboard.loadStats();
             await WardenDashboard.loadRecentActivity();
+            // If modal open, refresh list
+            if (document.getElementById('generalModal')?.style.display === 'block' && document.getElementById('mqList')) {
+                await loadMaintenanceQueueList();
+            }
         } else {
             UIHelper.showAlert('Failed to approve maintenance request', 'error');
         }
@@ -1280,10 +1347,14 @@ function showGeneralModal(title, content, actions = []) {
     // Additional actions
     for (const act of actions) {
         const btn = document.createElement('button');
-        const variant = act.danger ? 'btn-danger' : (act.primary ? 'btn-primary' : 'btn-secondary');
+        let variant = 'btn-secondary';
+        if (act.danger) variant = 'btn-danger';
+        else if (act.success) variant = 'btn-success';
+        else if (act.primary) variant = 'btn-primary';
         btn.className = `btn ${variant}`;
         btn.textContent = act.label;
         btn.onclick = act.onClick;
+        if (act.primary || act.success) btn.setAttribute('data-primary', 'true');
         actionsEl.appendChild(btn);
     }
     const modal = document.getElementById('generalModal');
@@ -1311,25 +1382,108 @@ function closeGeneralModal() {
 }
 
 async function openMaintenanceQueueModal() {
+    const controls = `
+        <div class="form-row" style="margin-bottom:0.75rem; display:flex; gap:0.75rem; align-items:flex-end;">
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select id="mqStatus" class="form-select">
+                    <option>All</option>
+                    <option>Pending</option>
+                    <option>In Progress</option>
+                </select>
+            </div>
+        </div>
+        <div id="mqList" class="modal-content-container"></div>`;
+    showGeneralModal('Maintenance Requests', controls, [
+        { label: 'Refresh', onClick: () => loadMaintenanceQueueList(), primary: true }
+    ]);
+    document.getElementById('mqStatus').addEventListener('change', loadMaintenanceQueueList);
+    await loadMaintenanceQueueList();
+}
+
+async function loadMaintenanceQueueList() {
+    const status = document.getElementById('mqStatus')?.value || 'All';
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const listEl = document.getElementById('mqList');
+    if (!listEl) return;
+    listEl.innerHTML = '<p style="color:#666;">Loading…</p>';
     try {
-        const requests = await API.call('/warden/maintenance-queue', { method: 'GET' });
-        const list = (requests || []).map(req => `
-            <div style="padding: 0.75rem; border:1px solid #e5e7eb; border-left:4px solid ${req.priority === 'High' ? '#e74c3c' : req.priority === 'Medium' ? '#f39c12' : '#27ae60'}; border-radius:8px; margin:0.5rem 0;">
+        const requests = await API.call(`/warden/maintenance-queue${qs}`, { method: 'GET' });
+        if (!requests || !requests.length) {
+            listEl.innerHTML = '<p style="color:#666; font-style:italic;">No requests</p>';
+            return;
+        }
+        listEl.innerHTML = requests.map(req => `
+            <div style="padding:0.75rem; border:1px solid #e5e7eb; border-left:4px solid ${req.priority === 'High' ? '#e74c3c' : req.priority === 'Medium' ? '#f39c12' : '#27ae60'}; border-radius:8px; margin:0.5rem 0; background:#fff;">
                 <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center;">
                     <div style="flex:1;">
                         <div style="font-weight:600;">${req.description || req.category}</div>
-                        <div style="font-size:0.9rem; color:#666;">${req.studentName} · Room ${req.roomNumber} · ${req.priority} · ${req.daysSinceCreated > 0 ? req.daysSinceCreated + ' days ago' : 'Today'}</div>
+                        <div style="font-size:0.9rem; color:#666;">${req.studentName} · Room ${req.roomNumber} · ${req.priority} · <strong>${req.status || ''}</strong> · ${req.daysSinceCreated > 0 ? req.daysSinceCreated + ' days ago' : 'Today'}</div>
                     </div>
                     <div style="display:flex; gap:0.5rem;">
-                        <button class="btn btn-primary" onclick="approveRequest(${req.requestId})">Approve</button>
+                        ${req.status === 'Pending' ? `<button class="btn btn-primary" onclick="approveRequest(${req.requestId})">Start</button>` : ''}
+                        ${req.status === 'In Progress' ? `<button class="btn btn-success" onclick="openCompleteMaintenanceModal(${req.requestId})"><span aria-hidden="true" class="icon" style="display:inline-flex;vertical-align:middle;margin-right:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>Mark Completed</button>` : ''}
                     </div>
                 </div>
-            </div>
-        `).join('');
-        const html = requests && requests.length ? list : '<p style="color:#666; font-style:italic;">No pending requests</p>';
-        showGeneralModal('Maintenance Requests', html);
+            </div>`).join('');
     } catch (e) {
-        showGeneralModal('Maintenance Requests', '<p style="color:#e74c3c;">Failed to load maintenance requests.</p>');
+        listEl.innerHTML = '<p style="color:#e74c3c;">Failed to load maintenance requests.</p>';
+    }
+}
+
+function openCompleteMaintenanceModal(requestId) {
+    const body = `
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Expense Amount (₹)</label>
+                <input id="cmAmount" type="number" step="0.01" min="0" class="form-input" placeholder="e.g., 500" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Paid At (optional)</label>
+                <input id="cmPaidAt" type="date" class="form-input" />
+            </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Vendor (optional)</label>
+                <input id="cmVendor" type="text" class="form-input" placeholder="e.g., ABC Services" />
+            </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Description (optional)</label>
+                <textarea id="cmDesc" rows="3" class="form-input" placeholder="Notes about the expense"></textarea>
+            </div>
+        </div>
+        <p class="form-help">Leaving amount empty will only mark the request as Completed without recording an expense.</p>`;
+    showGeneralModal('Complete Maintenance', body, [
+        { label: 'Complete', success: true, onClick: () => submitCompleteMaintenance(requestId) }
+    ]);
+}
+
+async function submitCompleteMaintenance(requestId) {
+    const amountRaw = document.getElementById('cmAmount')?.value;
+    const desc = document.getElementById('cmDesc')?.value?.trim();
+    const vendor = document.getElementById('cmVendor')?.value?.trim();
+    const paidAt = document.getElementById('cmPaidAt')?.value;
+    const payload = {};
+    if (amountRaw !== '' && amountRaw !== undefined && amountRaw !== null) payload.amount = Number(amountRaw);
+    if (desc) payload.description = desc;
+    if (vendor) payload.vendor = vendor;
+    if (paidAt) payload.paid_at = paidAt;
+    try {
+        const resp = await API.call(`/warden/complete-maintenance/${requestId}`, { method: 'POST', body: JSON.stringify(payload) });
+        if (resp?.success) {
+            UIHelper.showAlert('Maintenance marked as completed' + (payload.amount ? ' and expense saved' : ''), 'success');
+            closeGeneralModal();
+            await WardenDashboard.loadMaintenanceQueue();
+            await WardenDashboard.loadStats();
+            await WardenDashboard.loadRecentActivity();
+            // If modal still open (reopened), refresh
+            if (document.getElementById('generalModal')?.style.display === 'block' && document.getElementById('mqList')) {
+                await loadMaintenanceQueueList();
+            }
+        } else {
+            UIHelper.showAlert(resp?.message || 'Failed to complete maintenance', 'error');
+        }
+    } catch (e) {
+        UIHelper.showAlert(e?.message || 'Error completing maintenance', 'error');
     }
 }
 
