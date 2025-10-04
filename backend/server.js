@@ -28,9 +28,11 @@ const authRoutes = require('./routes/auth');
 const allotmentRoutes = require('./routes/allotment');
 const maintenanceRoutes = require('./routes/maintenance');
 const notificationRoutes = require('./routes/notifications');
+const rulesRoutes = require('./routes/rules');
 const wardenRoutes = require('./routes/warden');
 const superadminRoutes = require('./routes/superadmin');
 const studentActivityRoutes = require('./routes/student_activity');
+const studentRoutes = require('./routes/student');
 const issuesRoutes = require('./routes/issues');
 
 // Frontend entry routes (serve static HTML)
@@ -75,9 +77,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/allotment', allotmentRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/rules', rulesRoutes);
 app.use('/api/warden', wardenRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/activity', studentActivityRoutes);
+app.use('/api/student', studentRoutes);
 app.use('/api/issues', issuesRoutes);
 
 // Error handling middleware

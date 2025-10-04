@@ -32,6 +32,7 @@ router.get('/my-requests', authenticateToken, async (req, res) => {
       requestCount: requests.length
     });
     
+    // Map DB rows to API response; use created_at for request date
     res.json({
       success: true,
       data: {
@@ -41,8 +42,11 @@ router.get('/my-requests', authenticateToken, async (req, res) => {
           description: request.description,
           priority: request.priority,
           status: request.status,
-          date: request.request_date,
-          completionDate: request.completion_date,
+          // Some schemas may not have request_date; created_at is reliable
+          date: request.created_at,
+          // Not all schemas track completion_date; fall back to updated_at when completed
+          completionDate: request.completion_date || (request.status === 'Completed' ? request.updated_at : null),
+          // Joins can come nested; keep flat props if present
           roomNumber: request.room_no,
           hostelName: request.hostel_name
         }))

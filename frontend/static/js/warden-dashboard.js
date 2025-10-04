@@ -1136,6 +1136,11 @@ function updateRules() {
                 <label class="form-label">Summary / Key Changes</label>
                 <textarea id="ruMsg" class="form-input" rows="4" placeholder="Describe the rule changes" required></textarea>
             </div>
+            <div class="form-group" style="grid-column:1 / -1;">
+                <label class="form-label">Full Rules (HTML allowed)</label>
+                <textarea id="ruHtml" class="form-input" rows="10" placeholder="Paste or type the full rules content (HTML supported). Leave empty to only send announcement."></textarea>
+                <div class="form-help">Tip: You can paste HTML or plain text. Students will see the content in the Rules modal. If left blank, only an announcement will be sent.</div>
+            </div>
         </div>`;
     showGeneralModal('Update Rules', content, [
         { label: 'Publish', primary: true, onClick: submitUpdateRules }
@@ -1207,11 +1212,16 @@ async function submitRoomInspection() {
 async function submitUpdateRules() {
     const title = document.getElementById('ruTitle')?.value?.trim();
     const message = document.getElementById('ruMsg')?.value?.trim();
+    const html = document.getElementById('ruHtml')?.value?.trim();
     if (!title || !message) { UIHelper.showAlert('Title and Summary are required', 'error'); return; }
     try {
+        // If full HTML provided, save to settings first
+        if (html) {
+            await API.call('/rules/warden', { method: 'POST', body: JSON.stringify({ html }) });
+        }
         const resp = await API.call('/notifications/announce', { method: 'POST', body: JSON.stringify({ title, message, audience: 'Student' }) });
         if (resp?.success) {
-            UIHelper.showAlert('Rules updated and announced', 'success');
+            UIHelper.showAlert(html ? 'Rules saved and announced' : 'Rules announcement sent', 'success');
             closeGeneralModal();
             await WardenDashboard.loadRecentAnnouncements?.();
             await WardenDashboard.loadRecentActivity();
@@ -1335,7 +1345,8 @@ function showGeneralModal(title, content, actions = []) {
     const contentEl = document.getElementById('generalModalContent');
     const actionsEl = document.getElementById('generalModalActions');
     if (!titleEl || !contentEl || !actionsEl) return;
-    titleEl.textContent = title;
+    // Allow HTML so inline SVGs in titles render
+    titleEl.innerHTML = title;
     contentEl.innerHTML = content;
     // Reset actions
     actionsEl.innerHTML = '';

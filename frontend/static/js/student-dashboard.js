@@ -47,8 +47,7 @@ async function checkStudentProfile() {
             const result = await response.json();
             if (result.success && result.data.profile) {
                 if (result.data.profile.isStudent === false) {
-                    // Student profile doesn't exist
-                    alert('⚠️ Please complete your student profile to access hostel services.');
+                        alert('Please complete your student profile to access hostel services.');
                     window.location.href = 'student-profile-setup.html';
                     return false;
                 } else {
@@ -263,12 +262,7 @@ const StudentDashboard = {
                         // No allocation found - this is normal, not an error
                         roomInfoDiv.innerHTML = `
                             <div class="info-message" style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
-                                <div style="margin-bottom: 10px; display:inline-flex; color:#2563eb;">
-                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M3 9l9-7 9 7"/>
-                                        <path d="M9 22V12h6v10"/>
-                                    </svg>
-                                </div>
+                                <div style="font-size: 2rem; margin-bottom: 10px;">${svgIcon('home', 36)}</div>
                                 <h4 style="color: #495057; margin-bottom: 10px;">No Room Assigned</h4>
                                 <p style="color: #6c757d; margin-bottom: 15px;">
                                     You haven't been assigned a hostel room yet.
@@ -292,13 +286,13 @@ const StudentDashboard = {
             if (roomInfoDiv) {
                 roomInfoDiv.innerHTML = `
                     <div class="error-message" style="text-align: center; padding: 20px; background: #fff5f5; border-radius: 8px; border: 1px solid #fed7d7;">
-                        <div style="font-size: 2rem; margin-bottom: 10px;">⚠️</div>
+                        <div style="font-size: 2rem; margin-bottom: 10px;">${svgIcon('alert', 32)}</div>
                         <h4 style="color: #e53e3e; margin-bottom: 10px;">Connection Error</h4>
                         <p style="color: #c53030; margin-bottom: 15px;">
                             Unable to load room information from server.
                         </p>
                         <button class="btn btn-outline" onclick="StudentDashboard.loadRoomInfo()" style="background: white; border: 1px solid #e53e3e; color: #e53e3e;">
-                            🔄 Try Again
+                            ${svgIcon('refresh')} Try Again
                         </button>
                     </div>
                 `;
@@ -334,10 +328,10 @@ const StudentDashboard = {
                             // No requests found
                             maintenanceDiv.innerHTML = `
                                 <p style="color: #6c757d; text-align: center; margin: 1rem 0;">
-                                    📭 No maintenance requests yet.
+                                    ${svgIcon('inbox')} No maintenance requests yet.
                                 </p>
                                 <button class="btn btn-primary" onclick="newMaintenanceRequest()" style="width: 100%;">
-                                    🔧 Submit New Request
+                                    ${svgIcon('wrench')} Submit New Request
                                 </button>
                             `;
                         } else {
@@ -349,6 +343,10 @@ const StudentDashboard = {
                                     'Completed': '#27ae60',
                                     'Cancelled': '#95a5a6'
                                 }[request.status] || '#95a5a6';
+                                const formatDateSafe = (val) => {
+                                    const d = new Date(val);
+                                    return isNaN(d) ? '-' : d.toLocaleDateString();
+                                };
                                 
                                 return `
                                     <div style="padding: 0.75rem; border-left: 3px solid ${statusColor}; margin: 0.5rem 0; background: #f8f9fa; border-radius: 4px;">
@@ -357,7 +355,7 @@ const StudentDashboard = {
                                             ${request.description}
                                         </div>
                                         <div style="font-size: 0.9rem; color: #6c757d; margin-top: 0.25rem;">
-                                            Status: ${request.status} | Date: ${new Date(request.date).toLocaleDateString()}
+                                            Status: ${request.status} | Date: ${formatDateSafe(request.date)}
                                             ${request.roomNumber ? ` | Room: ${request.roomNumber}` : ''}
                                         </div>
                                     </div>
@@ -387,13 +385,13 @@ const StudentDashboard = {
             if (maintenanceDiv) {
                 maintenanceDiv.innerHTML = `
                     <div class="error-message" style="text-align: center; padding: 20px; background: #fff5f5; border-radius: 8px; border: 1px solid #fed7d7;">
-                        <div style="font-size: 2rem; margin-bottom: 10px;">⚠️</div>
+                        <div style="font-size: 2rem; margin-bottom: 10px;">${svgIcon('alert', 32)}</div>
                         <h4 style="color: #e53e3e; margin-bottom: 10px;">Connection Error</h4>
                         <p style="color: #c53030; margin-bottom: 15px;">
                             Unable to load maintenance requests from server.
                         </p>
                         <button class="btn btn-outline" onclick="StudentDashboard.loadMaintenanceRequests()" style="background: white; border: 1px solid #e53e3e; color: #e53e3e;">
-                            🔄 Try Again
+                            ${svgIcon('refresh')} Try Again
                         </button>
                     </div>
                 `;
@@ -442,19 +440,13 @@ const StudentDashboard = {
                                 'error': '#e74c3c'
                             };
                             
-                            const typeIcons = {
-                                'success': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
-                                'warning': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>', 
-                                'info': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>',
-                                'error': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
-                            };
-                            
                             const color = typeColors[notif.type] || '#3498db';
-                            const icon = typeIcons[notif.type] || '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>';
+                            const iconMap = { success: 'check-circle', warning: 'alert', info: 'info', error: 'x-circle' };
+                            const icon = svgIcon(iconMap[notif.type] || 'info');
                             
                             return `
                                 <div style="padding: 0.75rem; border-left: 3px solid ${color}; margin: 0.5rem 0; background: #f8f9fa; border-radius: 4px;">
-                                    <strong>${icon} ${notif.title}</strong>
+                                    <strong>${icon}${notif.title}</strong>
                                     <div style="font-size: 0.9rem; margin-top: 0.25rem; color: #555;">${notif.message}</div>
                                     <div style="font-size: 0.8rem; color: #666; margin-top: 0.25rem;">
                                         ${new Date(notif.date).toLocaleDateString()}
@@ -484,7 +476,7 @@ const StudentDashboard = {
                     <div class="error-message" style="text-align: center; padding: 15px; background: #fff5f5; border-radius: 8px; border: 1px solid #fed7d7;">
                         <p style="color: #e53e3e; margin-bottom: 10px;">Unable to load notifications</p>
                         <button class="btn btn-outline" onclick="StudentDashboard.loadNotifications()" style="background: white; border: 1px solid #e53e3e; color: #e53e3e; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
-                            🔄 Try Again
+                            ${svgIcon('refresh')} Try Again
                         </button>
                     </div>
                 `;
@@ -536,19 +528,11 @@ function viewRoomDetails() {
     if (roomNumber === 'Not Assigned') {
         roomDetailsHTML = `
             <div style="text-align: center; padding: 2rem;">
-                <div style="margin-bottom: 1rem; display:inline-flex; color:#2563eb;">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 9l9-7 9 7"/>
-                        <path d="M9 22V12h6v10"/>
-                    </svg>
-                </div>
+                <div style="font-size: 3rem; margin-bottom: 1rem;">${svgIcon('home', 48)}</div>
                 <h4 style="color: #e67e22; margin-bottom: 1rem;">No Room Assigned</h4>
                 <p style="color: #7f8c8d; margin-bottom: 2rem;">You haven't been assigned to a hostel room yet.</p>
                 <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
-                    <strong style="display:inline-flex; align-items:center; gap:6px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M2 12a10 10 0 1 1 20 0c0 3.87-2.14 5.98-4 7-1 0-1 2-4 2s-3-2-4-2c-1.86-1.02-4-3.13-4-7z"/></svg>
-                        Next Steps:
-                    </strong><br>
+                    <strong>${svgIcon('bulb')}Next Steps:</strong><br>
                     Apply for hostel allotment if available, or contact the hostel administration for assistance.
                 </div>
                 <button class="btn btn-primary" onclick="closeRoomDetailsModal(); openAllotmentModal();" style="margin-right: 10px;">
@@ -564,53 +548,37 @@ function viewRoomDetails() {
             <div style="text-align: left;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
                     <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #3498db;">
-                        <h5 style="color: #3498db; margin-bottom: 0.5rem; display:flex; align-items:center; gap:8px;">
-                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7"/><path d="M9 22V12h6v10"/></svg>
-                            Basic Information
-                        </h5>
+                        <h5 style="color: #3498db; margin-bottom: 0.5rem;">${svgIcon('home')}Basic Information</h5>
                         <p><strong>Room Number:</strong> ${roomNumber}</p>
                         <p><strong>Hostel:</strong> ${hostelName}</p>
                         <p><strong>Floor:</strong> ${document.getElementById('floor').textContent}</p>
                     </div>
                     <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #27ae60;">
-                        <h5 style="color: #27ae60; margin-bottom: 0.5rem; display:flex; align-items:center; gap:8px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                            Occupancy Details
-                        </h5>
+                        <h5 style="color: #27ae60; margin-bottom: 0.5rem;">${svgIcon('users')}Occupancy Details</h5>
                         <p><strong>Room Type:</strong> ${document.getElementById('roomType').textContent}</p>
                         <p><strong>Current Occupancy:</strong> ${document.getElementById('occupancy').textContent}</p>
-                        <p><strong>Status:</strong> <span style="color: #27ae60; display:inline-flex; align-items:center; gap:6px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                            Allocated
-                        </span></p>
+                        <p><strong>Status:</strong> <span style="color: #27ae60;">${svgIcon('check-circle')}Allocated</span></p>
                     </div>
                 </div>
                 
                 <div style="background: #e8f4fd; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #74b9ff;">
-                    <h5 style="color: #0984e3; margin-bottom: 1rem; display:flex; align-items:center; gap:8px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="14" rx="2" ry="2"/><path d="M7 7h10"/><path d="M7 11h10"/></svg>
-                        Room Facilities
-                    </h5>
+                    <h5 style="color: #0984e3; margin-bottom: 1rem;">${svgIcon('book')}Room Facilities</h5>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div>
-                            <p><span style="color:#27ae60; display:inline-flex; vertical-align:middle; margin-right:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> Furnished with bed and study table</p>
-                            <p><span style="color:#27ae60; display:inline-flex; vertical-align:middle; margin-right:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> Wardrobe and storage space</p>
-                            <p><span style="color:#27ae60; display:inline-flex; vertical-align:middle; margin-right:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> 24/7 electricity supply</p>
+                            <p>${svgIcon('check-circle')}Furnished with bed and study table</p>
+                            <p>${svgIcon('check-circle')}Wardrobe and storage space</p>
+                            <p>${svgIcon('check-circle')}24/7 electricity supply</p>
                         </div>
                         <div>
-                            <p><span style="color:#27ae60; display:inline-flex; vertical-align:middle; margin-right:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> High-speed Wi-Fi</p>
-                            <p><span style="color:#27ae60; display:inline-flex; vertical-align:middle; margin-right:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> Attached/shared bathroom</p>
-                            <p><span style="color:#27ae60; display:inline-flex; vertical-align:middle; margin-right:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span> Common area access</p>
+                            <p>${svgIcon('check-circle')}High-speed Wi-Fi</p>
+                            <p>${svgIcon('check-circle')}Attached/shared bathroom</p>
+                            <p>${svgIcon('check-circle')}Common area access</p>
                         </div>
                     </div>
                 </div>
                 
                 <div style="margin-top: 1.5rem; padding: 1rem; background: #fff3cd; border-radius: 8px;">
-                    <strong style="display:inline-flex; align-items:center; gap:6px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.11 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.81.3 1.6.54 2.36a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.72-1.11a2 2 0 0 1 2.11-.45c.76.24 1.55.42 2.36.54A2 2 0 0 1 22 16.92z"/></svg>
-                        Need Help?
-                    </strong>
-                    Contact your floor warden for any room-related issues or maintenance requests.
+                    <strong>${svgIcon('phone')}Need Help?</strong> Contact your floor warden for any room-related issues or maintenance requests.
                 </div>
             </div>
         `;
@@ -629,7 +597,9 @@ function closeRoomDetailsModal() {
 
 // General purpose modal functions
 function showGeneralModal(title, content, actions = []) {
-    document.getElementById('generalModalTitle').textContent = title;
+    // Allow HTML in title so inline SVG icons render
+    const titleEl = document.getElementById('generalModalTitle');
+    if (titleEl) titleEl.innerHTML = title;
     document.getElementById('generalModalContent').innerHTML = content;
     
     // Clear and add action buttons
@@ -653,114 +623,133 @@ function closeGeneralModal() {
     document.body.style.overflow = 'auto';
 }
 
+// Lightweight inline SVG icon helper (Feather-like)
+function svgIcon(name, size = 18) {
+    const attrs = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: -3px; margin-right:6px;"`;
+    const paths = {
+        phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3 5.18 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.72c.12.81.32 1.6.57 2.35a2 2 0 0 1-.45 2.11L9 10a16 16 0 0 0 5 5l.82-.82a2 2 0 0 1 2.11-.45c.75.25 1.54.45 2.35.57A2 2 0 0 1 22 16.92z"/>',
+        wrench: '<path d="M14.7 6.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4l-8.8 8.8a4 4 0 1 1-5.7-5.7l8.8-8.8a1 1 0 0 1 1.4 0z"/><path d="M16 5l3 3"/>',
+        alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+        book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4v15.5A2.5 2.5 0 0 0 6.5 22H20V6a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 6.5"/>',
+        building: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 22V12"/><path d="M15 22V12"/><path d="M3 10h18"/>',
+        eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+        refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/>',
+        home: '<path d="M3 9l9-7 9 7"/><path d="M9 22V12h6v10"/><path d="M21 22H3"/>',
+        'check-circle': '<path d="M22 11.08V12a10 10 0 1 1-10-10"/><polyline points="22 4 12 14 9 11"/>',
+        info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+        'x-circle': '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+        bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+        inbox: '<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 13h5l2 3h4l2-3h5"/>',
+        zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+        droplet: '<path d="M12 2.69l6.16 6.16a7 7 0 1 1-12.32 0z"/>',
+        box: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+        feather: '<path d="M20.24 7.24a6 6 0 0 0-8.49 0L3 16v5h5l8.76-8.76a6 6 0 0 0 0-8.49z"/>',
+        snow: '<path d="M12 2v20"/><path d="M2 12h20"/><path d="M4.93 4.93L19.07 19.07"/><path d="M19.07 4.93L4.93 19.07"/>',
+        lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+        ban: '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>',
+        search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+        'volume-2': '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19 12a7 7 0 0 0-7-7"/><path d="M19 12a7 7 0 0 1-7 7"/>',
+        'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>',
+        bulb: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 3 6h8c1-1 3-3 3-6a7 7 0 0 0-7-7z"/>',
+        users: '<path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+        mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/>',
+        'map-pin': '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+        coffee: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v8a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
+        star: '<polygon points="12 2 15 8.5 22 9.5 17 14.5 18.5 21 12 17.5 5.5 21 7 14.5 2 9.5 9 8.5 12 2"/>',
+        clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+        'credit-card': '<rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>'
+    };
+    if (!paths[name]) return '';
+    return `<svg ${attrs}>${paths[name]}</svg>`;
+}
+
 function newMaintenanceRequest() {
     const requestTypes = [
-        'Electricity', 'Plumbing', 'Cleaning', 'Other'
+        'Electrical Issue', 'Plumbing Issue', 'Furniture Repair', 
+        'Cleaning Request', 'AC/Heating Issue', 'Other'
     ];
     
     const options = requestTypes.map(type => `<option value="${type}">${type}</option>`).join('');
-    const currentRoomNumber = (document.getElementById('detailRoomNumber')?.textContent || '').trim();
     
     const formHtml = `
         <form id="maintenanceForm" class="modal-form">
-            <div class="form-section">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Request Type</label>
-                        <select id="requestType" required class="form-select">
-                            <option value="">Select Request Type</option>
-                            ${options}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Priority Level</label>
-                        <select id="requestPriority" required class="form-select">
-                            <option value="">Select Priority</option>
-                            <option value="low">Low - Can wait a few days</option>
-                            <option value="medium">Medium - Should be addressed soon</option>
-                            <option value="high">High - Needs attention within 24 hours</option>
-                            <option value="urgent">Urgent - Requires immediate attention</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Room Number</label>
-                        <input type="text" id="roomNumber" class="form-input" value="${currentRoomNumber}" readonly aria-readonly="true" disabled>
-                        <small class="form-help">Auto-filled from your current room allocation.</small>
-                    </div>
-                    <div class="form-group"></div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Description</label>
-                    <textarea id="requestDescription" required class="form-textarea" placeholder="Describe the issue, location and severity..."></textarea>
-                    <small class="form-help">Provide enough detail for the maintenance team to triage effectively.</small>
-                </div>
+            <div class="form-group">
+                <label class="form-label">Request Type:</label>
+                <select id="requestType" required class="form-select">
+                    <option value="">Select Request Type</option>
+                    ${options}
+                </select>
             </div>
+            
+            <div class="form-group">
+                <label class="form-label">Room Number:</label>
+                <input type="text" id="roomNumber" required class="form-input" placeholder="Enter your room number (e.g., A-201)">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Description:</label>
+                <textarea id="requestDescription" required class="form-textarea" placeholder="Please provide detailed information about the issue, including its location and severity..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Priority Level:</label>
+                <select id="requestPriority" required class="form-select">
+                    <option value="">Select Priority</option>
+                    <option value="low">Low - Can wait a few days</option>
+                    <option value="medium">Medium - Should be addressed soon</option>
+                    <option value="high">High - Needs attention within 24 hours</option>
+                    <option value="urgent">Urgent - Requires immediate attention</option>
+                </select>
+            </div>
+            
             <div class="note-box info">
                 <small>
-                    <strong>Note:</strong> For urgent issues affecting safety or security, please also contact the warden immediately.
+                    <strong>Note:</strong> For urgent issues affecting safety or security, please also contact the warden immediately. 
+                    You will receive a tracking number once your request is submitted.
                 </small>
             </div>
+            
             <div class="btn-group">
-                <button type="button" onclick="closeGeneralModal()" class="btn btn-outline">Cancel</button>
-                <button type="submit" class="btn btn-primary"><span aria-hidden="true" class="icon" style="display:inline-flex;vertical-align:middle;margin-right:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4l-8.8 8.8a4 4 0 1 1-5.7-5.7l8.8-8.8a1 1 0 0 1 1.4 0z"/></svg></span>Submit Request</button>
+                <button type="button" onclick="closeGeneralModal()" class="btn btn-primary">Cancel</button>
+                <button type="submit" class="btn btn-primary">${svgIcon('wrench')} Submit Request</button>
             </div>
         </form>
     `;
     
-    showGeneralModal('New Maintenance Request', formHtml);
+    showGeneralModal(svgIcon('wrench') + 'New Maintenance Request', formHtml);
     
     // Add form submission handler
     setTimeout(() => {
         const maintenanceForm = document.getElementById('maintenanceForm');
         if (maintenanceForm) {
-            maintenanceForm.addEventListener('submit', async (e) => {
+            maintenanceForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const type = document.getElementById('requestType').value;
+                const roomNumber = document.getElementById('roomNumber').value;
                 const description = document.getElementById('requestDescription').value;
                 const priority = document.getElementById('requestPriority').value;
                 
-                if (type && description && priority) {
-                    try {
-                        const resp = await fetch(apiUrl('/api/maintenance/submit'), {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${TokenManager.getToken()}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ type, description, priority })
-                        });
-                        const result = await resp.json();
-                        if (!resp.ok || !result.success) {
-                            throw new Error(result.message || 'Failed to submit request');
-                        }
-                        const requestId = result?.data?.requestId || `REQ${Date.now()}`;
-                        const successHtml = `
-                            <div class="success-container">
-                                <div class="success-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
-                                <h4 class="success-title">Request Submitted Successfully!</h4>
-                                <div class="success-details">
-                                    <p><strong>Request ID:</strong> #${requestId}</p>
-                                    <p><strong>Type:</strong> ${type}</p>
-                                    <p><strong>Priority:</strong> ${priority.charAt(0).toUpperCase() + priority.slice(1)}</p>
-                                    <p><strong>Status:</strong> Pending</p>
-                                </div>
-                                <button onclick="closeGeneralModal()" class="btn btn-success">Close</button>
+                if (type && roomNumber && description && priority) {
+                    const requestId = `REQ${Date.now()}`;
+                    const successHtml = `
+                        <div class="success-container">
+                            <div class="success-icon">${svgIcon('check-circle', 28)}</div>
+                            <h4 class="success-title">Request Submitted Successfully!</h4>
+                            <div class="success-details">
+                                <p><strong>Request ID:</strong> #${requestId}</p>
+                                <p><strong>Type:</strong> ${type}</p>
+                                <p><strong>Room:</strong> ${roomNumber}</p>
+                                <p><strong>Priority:</strong> ${priority.charAt(0).toUpperCase() + priority.slice(1)}</p>
+                                <p><strong>Status:</strong> Pending Review</p>
                             </div>
-                        `;
-                        showGeneralModal('Request Submitted', successHtml);
-                        // Refresh list after a short delay
-                        setTimeout(() => StudentDashboard.loadMaintenanceRequests(), 500);
-                    } catch (err) {
-                        const existingError = document.querySelector('.error-message');
-                        if (existingError) existingError.remove();
-                        const errorDiv = document.createElement('div');
-                        errorDiv.className = 'error-message';
-                        errorDiv.style.cssText = 'background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #dc3545;';
-                        errorDiv.innerHTML = `<strong>Error:</strong> ${err.message || 'Failed to submit request'}`;
-                        maintenanceForm.insertBefore(errorDiv, maintenanceForm.firstChild);
-                    }
+                            <p style="color: #6c757d; margin-bottom: 1rem;">
+                                You will receive updates on your request via email and dashboard notifications. 
+                                Expected response time based on priority: ${priority === 'urgent' ? '1-2 hours' : priority === 'high' ? '4-8 hours' : '24-48 hours'}.
+                            </p>
+                            <button onclick="closeGeneralModal()" class="btn btn-success">Close</button>
+                        </div>
+                    `;
+                    showGeneralModal(svgIcon('check-circle') + 'Request Submitted', successHtml);
                 } else {
                     // Show validation error within modal
                     const existingError = document.querySelector('.error-message');
@@ -810,7 +799,7 @@ function viewAllRequests() {
         }
     ];
     
-    showGeneralModal('📋 All Maintenance Requests', requestsHtml, actions);
+    showGeneralModal(svgIcon('book') + 'All Maintenance Requests', requestsHtml, actions);
 }
 
 async function viewAllNotifications() {
@@ -818,7 +807,7 @@ async function viewAllNotifications() {
         console.log('🔔 Loading all notifications modal...');
         
         // Show loading modal first
-        showGeneralModal('📢 All Notifications', `
+        showGeneralModal(svgIcon('bell') + 'All Notifications', `
             <div class="loading-message" style="text-align: center; padding: 20px;">
                 <p>Loading notifications...</p>
             </div>
@@ -842,12 +831,12 @@ async function viewAllNotifications() {
                 if (notifications.length === 0) {
                     const emptyHtml = `
                         <div class="modal-content-container" style="text-align: center; padding: 30px;">
-                            <div style="font-size: 3rem; margin-bottom: 15px;">📭</div>
+                            <div style="font-size: 3rem; margin-bottom: 15px;">${svgIcon('inbox', 48)}</div>
                             <h3 style="color: #495057; margin-bottom: 10px;">No Notifications</h3>
                             <p style="color: #6c757d;">You're all caught up! No new notifications at this time.</p>
                         </div>
                     `;
-                    showGeneralModal('📢 All Notifications', emptyHtml);
+                    showGeneralModal(svgIcon('bell') + 'All Notifications', emptyHtml);
                     return;
                 }
                 
@@ -857,18 +846,13 @@ async function viewAllNotifications() {
                         ${notifications.map(notif => {
                             const typeClass = `notification-${notif.type}`;
                             const urgentClass = notif.priority === 'high' ? 'urgent' : '';
-                            const typeIcons = {
-                                'success': '✅',
-                                'warning': '⚠️',
-                                'info': 'ℹ️',
-                                'error': '❌'
-                            };
-                            const icon = typeIcons[notif.type] || 'ℹ️';
+                            const iconMap = { success: 'check-circle', warning: 'alert', info: 'info', error: 'x-circle' };
+                            const icon = svgIcon(iconMap[notif.type] || 'info');
                             
                             return `
                                 <div class="notification-item ${typeClass} ${urgentClass}">
                                     <div class="notification-meta">
-                                        <strong style="color: #2c3e50;"><span class="icon" aria-hidden="true" style="display:inline-flex;vertical-align:middle;margin-right:6px;">${icon}</span>${notif.title}</strong>
+                                        <strong style="color: #2c3e50;">${icon}${notif.title}</strong>
                                         <div>
                                             <span class="notification-date">${new Date(notif.date).toLocaleDateString()}</span>
                                             ${notif.priority === 'high' ? '<span class="urgent-badge">URGENT</span>' : ''}
@@ -881,7 +865,7 @@ async function viewAllNotifications() {
                     </div>
                 `;
                 
-                showGeneralModal('📢 All Notifications', notificationsHtml);
+                showGeneralModal(svgIcon('bell') + 'All Notifications', notificationsHtml);
             } else {
                 throw new Error(result.message || 'Failed to load notifications');
             }
@@ -892,15 +876,15 @@ async function viewAllNotifications() {
         console.error('Error loading all notifications:', error);
         const errorHtml = `
             <div class="modal-content-container" style="text-align: center; padding: 30px;">
-                <div style="font-size: 3rem; margin-bottom: 15px;">⚠️</div>
+                <div style="font-size: 3rem; margin-bottom: 15px;">${svgIcon('alert', 48)}</div>
                 <h3 style="color: #e53e3e; margin-bottom: 10px;">Connection Error</h3>
                 <p style="color: #c53030; margin-bottom: 20px;">Unable to load notifications from server.</p>
                 <button class="btn btn-primary" onclick="viewAllNotifications()" style="background: #e53e3e; border: 1px solid #e53e3e;">
-                    🔄 Try Again
+                    ${svgIcon('refresh')} Try Again
                 </button>
             </div>
         `;
-                showGeneralModal('All Notifications', errorHtml);
+                showGeneralModal(svgIcon('bell') + 'All Notifications', errorHtml);
     }
 }
 
@@ -1312,11 +1296,9 @@ function dashClearAlerts() {
 function reportIssue() {
     const formHtml = `
         <form id="reportIssueForm" class="modal-form">
-            <div class="form-section">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Issue Category</label>
-                        <select id="issueCategory" required class="form-select">
+            <div class="form-group">
+                <label class="form-label">Issue Category:</label>
+                <select id="issueCategory" required class="form-select">
                     <option value="">Select Category</option>
                     <option value="security">Security Concern</option>
                     <option value="harassment">Harassment/Bullying</option>
@@ -1325,24 +1307,24 @@ function reportIssue() {
                     <option value="safety">Safety Hazard</option>
                     <option value="maintenance">Maintenance Issue</option>
                     <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Location</label>
-                        <input type="text" id="issueLocation" required class="form-input" placeholder="Room, floor or area where this occurred">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Description</label>
-                    <textarea id="issueDescription" required class="form-textarea large" placeholder="Describe what happened, when, and any relevant details..."></textarea>
-                    <small class="form-help">Avoid sharing sensitive personal info; the team may contact you for follow-up.</small>
-                </div>
-                <div class="form-group">
-                    <label class="form-checkbox-container">
-                        <input type="checkbox" id="anonymousReport" class="form-checkbox">
-                        Submit anonymously (your identity will not be disclosed)
-                    </label>
-                </div>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Description:</label>
+                <textarea id="issueDescription" required class="form-textarea large" placeholder="Please provide detailed information about the issue, including when it occurred and any relevant details..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Location:</label>
+                <input type="text" id="issueLocation" required class="form-input" placeholder="Room number, floor, or specific area where this occurred">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-checkbox-container">
+                    <input type="checkbox" id="anonymousReport" class="form-checkbox">
+                    Submit anonymously (your identity will not be disclosed)
+                </label>
             </div>
             
             <div class="note-box warning">
@@ -1353,18 +1335,13 @@ function reportIssue() {
             </div>
             
             <div class="btn-group">
-                <button type="button" onclick="closeGeneralModal()" class="btn btn-outline">Cancel</button>
-                <button type="submit" class="btn btn-danger">
-                    <span aria-hidden="true" class="icon" style="display:inline-flex;vertical-align:middle;margin-right:6px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    </span>
-                    Submit Report
-                </button>
+                <button type="button" onclick="closeGeneralModal()" class="btn btn-primary">Cancel</button>
+                <button type="submit" class="btn btn-danger">${svgIcon('alert')} Submit Report</button>
             </div>
         </form>
     `;
     
-    showGeneralModal('Report Issue', formHtml);
+    showGeneralModal(svgIcon('alert') + 'Report Issue', formHtml);
     
     // Add form submission handler
     setTimeout(() => {
@@ -1396,7 +1373,7 @@ function reportIssue() {
                             const reportId = result.reportId || `RPT${Date.now()}`;
                             const successHtml = `
                                 <div class="success-container">
-                                    <div class="success-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+                                    <div class="success-icon">${svgIcon('check-circle', 28)}</div>
                                     <h4 class="success-title">Report Submitted Successfully!</h4>
                                     <div class="success-details">
                                         <p><strong>Report ID:</strong> #${reportId}</p>
@@ -1410,7 +1387,7 @@ function reportIssue() {
                                     <button onclick="closeGeneralModal()" class="btn btn-success">Close</button>
                                 </div>
                             `;
-                            showGeneralModal('Report Submitted', successHtml);
+                            showGeneralModal(svgIcon('check-circle') + 'Report Submitted', successHtml);
                         } else {
                             const errorMsg = await response.text();
                             alert('Error submitting report: ' + errorMsg);
@@ -1434,10 +1411,11 @@ function reportIssue() {
 }
 
 function viewHostelRules() {
-    const rulesHtml = `
+    // Fallback dummy rules (current content)
+    const fallbackHtml = `
         <div class="modal-content-container">
             <div class="info-card orange">
-                <h5 style="color: #e67e22; margin-bottom: 0.5rem;">🕘 Timing Rules:</h5>
+                <h5 style="color: #e67e22; margin-bottom: 0.5rem;">${svgIcon('clock')}Timing Rules:</h5>
                 <ul class="styled-list">
                     <li>Hostel gates close at 10:00 PM on weekdays</li>
                     <li>Weekend curfew extended to 11:00 PM</li>
@@ -1446,7 +1424,7 @@ function viewHostelRules() {
             </div>
             
             <div class="info-card blue">
-                <h5 style="color: #3498db; margin-bottom: 0.5rem;">👥 Visitor Policy:</h5>
+                <h5 style="color: #3498db; margin-bottom: 0.5rem;">${svgIcon('users')}Visitor Policy:</h5>
                 <ul class="styled-list">
                     <li>Visitors allowed only in common areas</li>
                     <li>Visitor timings: 9:00 AM - 6:00 PM</li>
@@ -1455,7 +1433,7 @@ function viewHostelRules() {
             </div>
             
             <div class="info-card pink">
-                <h5 style="color: #e74c3c; margin-bottom: 0.5rem;">🚫 Prohibited Items:</h5>
+                <h5 style="color: #e74c3c; margin-bottom: 0.5rem;">${svgIcon('ban')}Prohibited Items:</h5>
                 <ul class="styled-list">
                     <li>Alcohol and illegal substances</li>
                     <li>Cooking appliances (except electric kettles)</li>
@@ -1465,7 +1443,7 @@ function viewHostelRules() {
             </div>
             
             <div class="info-card green">
-                <h5 style="color: #27ae60; margin-bottom: 0.5rem;">🧹 Cleanliness:</h5>
+                <h5 style="color: #27ae60; margin-bottom: 0.5rem;">${svgIcon('feather')}Cleanliness:</h5>
                 <ul class="styled-list">
                     <li>Keep rooms and common areas clean</li>
                     <li>Dispose waste in designated bins</li>
@@ -1474,7 +1452,7 @@ function viewHostelRules() {
             </div>
             
             <div class="info-card yellow">
-                <h5 style="color: #856404; margin-bottom: 0.5rem;">💰 Penalties:</h5>
+                <h5 style="color: #856404; margin-bottom: 0.5rem;">${svgIcon('credit-card')}Penalties:</h5>
                 <ul class="styled-list" style="color: #856404;">
                     <li>Late entry: Warning (1st time), ₹100 fine (repeat)</li>
                     <li>Damage to property: Repair cost + ₹500 fine</li>
@@ -1484,100 +1462,68 @@ function viewHostelRules() {
         </div>
     `;
     
-    showGeneralModal('📋 Hostel Rules & Regulations', rulesHtml);
+    // Show loading first
+    showGeneralModal(svgIcon('book') + 'Hostel Rules & Regulations', '<p style="color:#666;">Loading rules…</p>');
+    // Fetch from API (public GET)
+    fetch(apiUrl('/api/rules'))
+        .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load rules')))
+        .then(json => {
+            const html = json?.data?.html || fallbackHtml;
+            showGeneralModal(svgIcon('book') + 'Hostel Rules & Regulations', html);
+        })
+        .catch(() => {
+            // Fallback to built-in dummy rules
+            showGeneralModal(svgIcon('book') + 'Hostel Rules & Regulations', fallbackHtml);
+        });
 }
 
 function contactWarden() {
-    const contactInfo = `
-        <div class="modal-content-container">
-            <div class="info-card blue">
-                <h5>🏠 Boys Hostel A - Mr. Rajesh Kumar</h5>
-                <div class="contact-info">
-                    <div>
-                        <p><strong>📞 Phone:</strong> +91 9876543210</p>
-                        <p><strong>✉️ Email:</strong> warden.boysA@college.edu</p>
+    showGeneralModal(svgIcon('phone') + 'Contact Warden', '<p style="color:#666;">Loading your warden contact…</p>');
+    API.call('/student/my-warden', { method: 'GET' })
+        .then(res => {
+            const data = res?.data;
+            if (!data) {
+                showGeneralModal(svgIcon('phone') + 'Contact Warden', '<div class="modal-content-container"><div class="info-card"><p>No active hostel allocation. Please contact the hostel office.</p></div></div>');
+                return;
+            }
+            const hostelName = data.hostelName || 'Your Hostel';
+            const w = data.warden || {};
+            const email = w.email || '';
+            const phone = w.phone || '';
+            const telHref = phone ? `tel:${phone.replace(/\D/g,'')}` : '#';
+            const mailHref = email ? `mailto:${email}` : '#';
+            const card = `
+                <div class="modal-content-container">
+                    <div class="info-card blue">
+                        <h5>${svgIcon('home')}${hostelName}${w.username ? ' - ' + w.username : ''}</h5>
+                        <div class="contact-info">
+                            <div>
+                                <p><strong>${svgIcon('phone')}Phone:</strong> ${phone || '—'}</p>
+                                <p><strong>${svgIcon('mail')}Email:</strong> ${email || '—'}</p>
+                            </div>
+                            <div>
+                                <p><strong>Hostel Type:</strong> ${data.hostelType || '—'}</p>
+                                <p><strong>${svgIcon('map-pin')}Location:</strong> ${data.location || '—'}</p>
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            ${phone ? `<a href="${telHref}" class="btn btn-success btn-small action-link">Call</a>` : ''}
+                            ${email ? `<a href="${mailHref}" class="btn btn-primary btn-small action-link">Email</a>` : ''}
+                        </div>
                     </div>
-                    <div>
-                        <p><strong>📍 Office:</strong> Ground Floor, Boys Hostel A</p>
-                        <p><strong>🕐 Hours:</strong> 9:00 AM - 6:00 PM</p>
-                    </div>
-                </div>
-                <div class="btn-group">
-                    <a href="tel:+919876543210" class="btn btn-success btn-small action-link">Call</a>
-                    <a href="mailto:warden.boysA@college.edu" class="btn btn-primary btn-small action-link">Email</a>
-                </div>
-            </div>
-            
-            <div class="info-card purple">
-                <h5>🏠 Boys Hostel B - Mr. Suresh Patel</h5>
-                <div class="contact-info">
-                    <div>
-                        <p><strong>📞 Phone:</strong> +91 9876543211</p>
-                        <p><strong>✉️ Email:</strong> warden.boysB@college.edu</p>
-                    </div>
-                    <div>
-                        <p><strong>📍 Office:</strong> Ground Floor, Boys Hostel B</p>
-                        <p><strong>🕐 Hours:</strong> 9:00 AM - 6:00 PM</p>
-                    </div>
-                </div>
-                <div class="btn-group">
-                    <a href="tel:+919876543211" class="btn btn-success btn-small action-link">Call</a>
-                    <a href="mailto:warden.boysB@college.edu" class="btn btn-primary btn-small action-link">Email</a>
-                </div>
-            </div>
-            
-            <div class="info-card pink">
-                <h5>🏠 Girls Hostel A - Mrs. Priya Sharma</h5>
-                <div class="contact-info">
-                    <div>
-                        <p><strong>📞 Phone:</strong> +91 9876543212</p>
-                        <p><strong>✉️ Email:</strong> warden.girlsA@college.edu</p>
-                    </div>
-                    <div>
-                        <p><strong>📍 Office:</strong> Ground Floor, Girls Hostel A</p>
-                        <p><strong>🕐 Hours:</strong> 9:00 AM - 6:00 PM</p>
-                    </div>
-                </div>
-                <div class="btn-group">
-                    <a href="tel:+919876543212" class="btn btn-success btn-small action-link">Call</a>
-                    <a href="mailto:warden.girlsA@college.edu" class="btn btn-primary btn-small action-link">Email</a>
-                </div>
-            </div>
-            
-            <div class="info-card orange">
-                <h5>🏠 Girls Hostel B - Mrs. Meena Gupta</h5>
-                <div class="contact-info">
-                    <div>
-                        <p><strong>📞 Phone:</strong> +91 9876543213</p>
-                        <p><strong>✉️ Email:</strong> warden.girlsB@college.edu</p>
-                    </div>
-                    <div>
-                        <p><strong>📍 Office:</strong> Ground Floor, Girls Hostel B</p>
-                        <p><strong>🕐 Hours:</strong> 9:00 AM - 6:00 PM</p>
-                    </div>
-                </div>
-                <div class="btn-group">
-                    <a href="tel:+919876543213" class="btn btn-success btn-small action-link">Call</a>
-                    <a href="mailto:warden.girlsB@college.edu" class="btn btn-primary btn-small action-link">Email</a>
-                </div>
-            </div>
-            
-                <div class="emergency-card">
-                <h5><span aria-hidden="true" class="icon" style="display:inline-flex;vertical-align:middle;margin-right:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span> Emergency Contact</h5>
-                <p>For urgent issues after office hours</p>
-                <a href="tel:+919876543200" class="btn btn-danger btn-large">📞 +91 9876543200</a>
-            </div>
-        </div>
-    `;
-    
-    showGeneralModal('📞 Contact Warden', contactInfo);
+                </div>`;
+            showGeneralModal(svgIcon('phone') + 'Contact Warden', card);
+        })
+        .catch(() => {
+            showGeneralModal(svgIcon('phone') + 'Contact Warden', '<div class="modal-content-container"><div class="info-card"><p>Could not fetch warden details. Please try again later.</p></div></div>');
+        });
 }
 
 function viewFacilities() {
     const facilitiesHtml = `
         <div class="modal-content-container">
             <div class="info-card blue">
-                <h5>🛏️ Room Facilities</h5>
+                <h5>${svgIcon('home')}Room Facilities</h5>
                 <div class="grid-auto">
                     <ul class="styled-list">
                         <li>Furnished rooms with bed, study table, and wardrobe</li>
@@ -1591,7 +1537,7 @@ function viewFacilities() {
             </div>
             
             <div class="info-card orange">
-                <h5>🍽️ Dining Facilities</h5>
+                <h5>${svgIcon('coffee')}Dining Facilities</h5>
                 <div class="grid-2">
                     <div>
                         <h6 style="color: #e67e22; margin-bottom: 0.5rem;">Meal Options:</h6>
@@ -1613,7 +1559,7 @@ function viewFacilities() {
             </div>
             
             <div class="info-card green">
-                <h5>🏃‍♂️ Recreation & Sports</h5>
+                <h5>${svgIcon('star')}Recreation & Sports</h5>
                 <div class="grid-auto-200">
                     <div>
                         <h6 style="color: #27ae60; margin-bottom: 0.5rem;">Indoor:</h6>
@@ -1635,7 +1581,7 @@ function viewFacilities() {
             </div>
             
             <div class="info-card pink">
-                <h5>🔧 Essential Services</h5>
+                <h5>${svgIcon('wrench')}Essential Services</h5>
                 <div class="grid-auto">
                     <ul class="styled-list">
                         <li>24/7 security & CCTV surveillance</li>
@@ -1651,18 +1597,18 @@ function viewFacilities() {
             </div>
             
             <div class="info-card gradient">
-                <h5>✨ Additional Amenities</h5>
+                <h5>${svgIcon('star')}Additional Amenities</h5>
                 <div class="facility-tags">
-                    <span class="facility-tag">🚗 Parking Facility</span>
-                    <span class="facility-tag">🏠 Guest Rooms</span>
-                    <span class="facility-tag">💳 ATM Facility</span>
-                    <span class="facility-tag">📝 Stationery Shop</span>
+                    <span class="facility-tag">Parking Facility</span>
+                    <span class="facility-tag">Guest Rooms</span>
+                    <span class="facility-tag">ATM Facility</span>
+                    <span class="facility-tag">Stationery Shop</span>
                 </div>
             </div>
         </div>
     `;
     
-    showGeneralModal('🏢 Hostel Facilities', facilitiesHtml);
+    showGeneralModal(svgIcon('building') + 'Hostel Facilities', facilitiesHtml);
 }
 
 // Allotment Registration Functions
@@ -1820,7 +1766,7 @@ function viewAllotmentGuidelines() {
     const guidelinesHtml = `
         <div class="modal-content-container">
             <div class="info-card light-blue">
-                <h5 style="color: #1976d2; margin-bottom: 1rem;">📋 Application Guidelines</h5>
+                <h5 style="color: #1976d2; margin-bottom: 1rem;">${svgIcon('book')}Application Guidelines</h5>
                 <ul class="styled-list spaced">
                     <li>All fields marked with <span style="color: #e74c3c;">*</span> are mandatory</li>
                     <li>Room allotment is subject to availability at time of processing</li>
@@ -1830,7 +1776,7 @@ function viewAllotmentGuidelines() {
             </div>
             
             <div class="info-card orange">
-                <h5 style="color: #f57c00; margin-bottom: 1rem;">💰 Payment & Timeline</h5>
+                <h5 style="color: #f57c00; margin-bottom: 1rem;">${svgIcon('credit-card')}Payment & Timeline</h5>
                 <ul class="styled-list spaced">
                     <li>Fee payment must be completed within <strong>7 days</strong> of allotment confirmation</li>
                     <li>Late payment may result in forfeiture of allotted room</li>
@@ -1839,7 +1785,7 @@ function viewAllotmentGuidelines() {
             </div>
             
             <div class="info-card green">
-                <h5 style="color: #388e3c; margin-bottom: 1rem;">🔄 Change Requests</h5>
+                <h5 style="color: #388e3c; margin-bottom: 1rem;">${svgIcon('refresh')}Change Requests</h5>
                 <ul class="styled-list spaced">
                     <li>Room change requests can be submitted after <strong>30 days</strong> of initial allotment</li>
                     <li>Valid reasons required for room change approval</li>
@@ -1848,20 +1794,20 @@ function viewAllotmentGuidelines() {
             </div>
             
             <div class="info-card pink">
-                <h5 style="color: #c2185b; margin-bottom: 1rem;">📞 Contact Support</h5>
+                <h5 style="color: #c2185b; margin-bottom: 1rem;">${svgIcon('phone')}Contact Support</h5>
                 <ul class="styled-list spaced">
                     <li>For technical issues with the application form</li>
                     <li>For questions about room preferences</li>
                     <li>For medical accommodation requests</li>
                 </ul>
                 <div class="btn-group center">
-                    <a href="mailto:hostel@college.edu" class="btn btn-danger">📧 Contact Hostel Office</a>
+                    <a href="mailto:hostel@college.edu" class="btn btn-danger">${svgIcon('mail')} Contact Hostel Office</a>
                 </div>
             </div>
         </div>
     `;
     
-    showGeneralModal('📋 Hostel Allotment Guidelines', guidelinesHtml);
+    showGeneralModal(svgIcon('book') + 'Hostel Allotment Guidelines', guidelinesHtml);
 }
 
 // Handle allotment form submission
