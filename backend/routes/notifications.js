@@ -76,16 +76,20 @@ router.get('/my-notifications', authenticateToken, async (req, res) => {
         });
       } else {
         // Has room - show room-related notifications
-        const currentRoom = roomResult.rows[0];
-        
-        notifications.push({
-          id: 'current-room',
-          title: '🎉 Room Allocated',
-          message: `You are allocated to Room ${currentRoom.room_no} in ${currentRoom.hostel_name} (${currentRoom.hostel_type}).`,
-          type: 'success',
-          date: currentRoom.allotment_date,
-          priority: 'normal'
-        });
+        const ra = await RoomAllotmentModel.findActiveByStudent(student.student_id);
+        if (ra) {
+          const roomNo = ra?.rooms?.room_no || ra?.room_no;
+          const hostelName = ra?.rooms?.hostels?.hostel_name || ra?.hostel_name || 'Hostel';
+          const hostelType = ra?.rooms?.hostels?.hostel_type || ra?.hostel_type || '';
+          notifications.push({
+            id: 'current-room',
+            title: '🎉 Room Allocated',
+            message: `You are allocated to Room ${roomNo} in ${hostelName}${hostelType ? ` (${hostelType})` : ''}.`,
+            type: 'success',
+            date: ra.allotment_date,
+            priority: 'normal'
+          });
+        }
         
         // Check for pending maintenance requests
         const { MaintenanceRequestModel } = require('../models');

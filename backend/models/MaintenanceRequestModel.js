@@ -155,6 +155,31 @@ class MaintenanceRequestModel extends BaseModel {
     }
   }
 
+  // Monthly statistics (calendar month)
+  async getMonthlyStats(date = new Date()) {
+    try {
+      const first = new Date(date.getFullYear(), date.getMonth(), 1);
+      const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      // Fetch all rows in the month; we'll aggregate client-side
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .gte('created_at', first.toISOString())
+        .lt('created_at', nextMonth.toISOString());
+      if (error) throw error;
+      const rows = data || [];
+      return {
+        totalThisMonth: rows.length,
+        pending: rows.filter(r => r.status === 'Pending').length,
+        inProgress: rows.filter(r => r.status === 'In Progress').length,
+        completed: rows.filter(r => r.status === 'Completed').length
+      };
+    } catch (error) {
+      console.error('Error getting monthly maintenance stats:', error.message);
+      throw error;
+    }
+  }
+
   async search(filters = {}) {
     try {
       let qb = supabase.from('maintenance_requests').select('*, students(name, reg_no), rooms(room_no), hostels:rooms!inner(hostel_id)(hostel_name, hostel_type)');

@@ -5,8 +5,10 @@ const HostelModel = require('./HostelModel');
 const RoomModel = require('./RoomModel');
 const RoomAllotmentModel = require('./RoomAllotmentModel');
 const MaintenanceRequestModel = require('./MaintenanceRequestModel');
+const MaintenanceExpenseModel = require('./MaintenanceExpenseModel');
 const NotificationModel = require('./NotificationModel');
 const AllotmentApplicationModel = require('./AllotmentApplicationModel');
+const IssueModel = require('./IssueModel');
 
 module.exports = {
   UserModel,
@@ -16,5 +18,7 @@ module.exports = {
   RoomAllotmentModel,
   AllotmentApplicationModel,
   MaintenanceRequestModel,
-  NotificationModel
+  MaintenanceExpenseModel,
+  NotificationModel,
+  IssueModel
 };

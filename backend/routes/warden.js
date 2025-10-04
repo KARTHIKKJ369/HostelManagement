@@ -23,12 +23,14 @@ router.get('/stats', authenticateToken, requireWardenRole, async (req, res) => {
       totalStudents,
       totalRooms,
       occupiedRooms,
+      studentsWithRooms,
       pendingMaintenanceRequests,
       pendingAllotmentApplications
     ] = await Promise.all([
       StudentModel.count(),
       RoomModel.count(),
       RoomModel.count({ status: 'Occupied' }),
+      RoomAllotmentModel.count({ status: 'Active' }),
       MaintenanceRequestModel.count({ status: 'Pending' }),
       AllotmentApplicationModel.count({ status: 'pending' })
     ]);
@@ -40,6 +42,7 @@ router.get('/stats', authenticateToken, requireWardenRole, async (req, res) => {
       totalStudents,
       totalRooms,
       occupiedRooms,
+      studentsWithRooms, // distinct active room allotments (1 active per student enforced)
       availableRooms,
       pendingRequests: pendingMaintenanceRequests,
       pendingApplications: pendingAllotmentApplications,
@@ -115,10 +118,31 @@ router.get('/room-summary', authenticateToken, requireWardenRole, async (req, re
 // GET /api/warden/maintenance-queue - Get pending maintenance requests
 router.get('/maintenance-queue', authenticateToken, requireWardenRole, async (req, res) => {
   try {
-    console.log('🔧 Fetching maintenance queue...');
+  const { status } = req.query;
+  // If missing or 'All', show actionable items (Pending + In Progress)
+  const filter = status || 'All';
+    console.log('🔧 Fetching maintenance queue...', { status: filter });
 
-    // Get pending maintenance requests with details
-    const requests = await MaintenanceRequestModel.findWithDetails({ status: 'Pending' });
+    // Get maintenance requests based on status filter
+    let requests = [];
+    if (filter === 'Pending') {
+      requests = await MaintenanceRequestModel.findWithDetails({ status: 'Pending' });
+    } else if (filter === 'In Progress') {
+      requests = await MaintenanceRequestModel.findWithDetails({ status: 'In Progress' });
+    } else if (filter === 'All') {
+      const [p, ip] = await Promise.all([
+        MaintenanceRequestModel.findWithDetails({ status: 'Pending' }),
+        MaintenanceRequestModel.findWithDetails({ status: 'In Progress' })
+      ]);
+      requests = [ ...(p || []), ...(ip || []) ];
+    } else if (typeof filter === 'string' && filter.includes(',')) {
+      // Multiple statuses requested – fetch all and filter in memory
+      const all = await MaintenanceRequestModel.findWithDetails({});
+      const wanted = filter.split(',').map(s => s.trim());
+      requests = (all || []).filter(r => wanted.includes(r.status));
+    } else {
+      requests = await MaintenanceRequestModel.findWithDetails({ status: filter });
+    }
 
     const formattedRequests = requests.map(req => ({
       requestId: req.request_id,
@@ -126,6 +150,7 @@ router.get('/maintenance-queue', authenticateToken, requireWardenRole, async (re
       roomNumber: req.room_no || 'Unknown Room',
       category: req.category,
       description: req.description,
+      status: req.status,
       priority: req.priority || 'Medium',
       createdAt: req.created_at,
       daysSinceCreated: Math.floor((new Date() - new Date(req.created_at)) / (1000 * 60 * 60 * 24))
@@ -139,12 +164,56 @@ router.get('/maintenance-queue', authenticateToken, requireWardenRole, async (re
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
 
-    console.log(`✅ Found ${formattedRequests.length} pending maintenance requests`);
+    console.log(`✅ Found ${formattedRequests.length} maintenance requests for filter '${filter}'`);
     res.json(formattedRequests);
 
   } catch (error) {
     console.error('❌ Error fetching maintenance queue:', error);
     res.status(500).json({ message: 'Failed to fetch maintenance requests' });
+  }
+});
+
+// POST /api/warden/complete-maintenance - Mark a maintenance request completed; optionally record expense
+router.post('/complete-maintenance/:requestId', authenticateToken, requireWardenRole, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { amount, description, vendor, paid_at } = req.body || {};
+    console.log(`✅ Completing maintenance request ${requestId}`);
+    const updated = await MaintenanceRequestModel.completeRequest(requestId);
+    if (!updated) return res.status(404).json({ message: 'Maintenance request not found' });
+
+    let expense = null;
+    if (amount !== undefined && amount !== null && amount !== '' && !isNaN(Number(amount))) {
+      try {
+        const { MaintenanceExpenseModel } = require('../models');
+        expense = await MaintenanceExpenseModel.createExpense({
+          request_id: parseInt(requestId),
+          amount: Number(amount),
+          description: description || null,
+          vendor: vendor || null,
+          paid_at: paid_at ? new Date(paid_at).toISOString() : null,
+          created_by: req.user.userId
+        });
+      } catch (e) {
+        console.error('⚠️ Failed to record maintenance expense:', e.message);
+      }
+    }
+
+    res.json({ success: true, message: 'Maintenance request marked as completed', request: updated, expense });
+  } catch (error) {
+    console.error('❌ Error completing maintenance request:', error);
+    res.status(500).json({ message: 'Failed to complete maintenance request' });
+  }
+});
+
+// GET /api/warden/maintenance-monthly - Monthly totals for maintenance (calendar month)
+router.get('/maintenance-monthly', authenticateToken, requireWardenRole, async (req, res) => {
+  try {
+    const stats = await MaintenanceRequestModel.getMonthlyStats();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('❌ Error fetching maintenance monthly stats:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch monthly stats' });
   }
 });
 
@@ -947,7 +1016,7 @@ router.get('/finance/summary', authenticateToken, requireWardenRole, async (req,
     const wardenId = req.user.userId;
     const studentIds = await getWardenStudentIds(wardenId);
     if (!studentIds.length) {
-      return res.json({ success: true, summary: { total_billed: 0, total_paid: 0, pending: 0, overdue: 0, monthlyPayments: 0, feesCount: 0 } });
+      return res.json({ success: true, summary: { total_billed: 0, total_paid: 0, pending: 0, overdue: 0, monthlyPayments: 0, feesCount: 0, maintenance_expenses: 0, maintenance_expenses_month: 0 } });
     }
 
     // Fees for these students
@@ -980,7 +1049,40 @@ router.get('/finance/summary', authenticateToken, requireWardenRole, async (req,
       monthlyPayments = (pays || []).reduce((s, p) => s + Number(p.amount || 0), 0);
     }
 
-    res.json({ success: true, summary: { ...totals, monthlyPayments, feesCount: fees?.length || 0 } });
+    // Compute maintenance expenses scoped to this warden's hostels: gather request_ids for rooms in these hostels
+    let maintTotal = 0, maintMonth = 0;
+    try {
+      const { data: hostels } = await supabase
+        .from('hostels')
+        .select('hostel_id')
+        .eq('warden_id', wardenId);
+      const hostelIds = (hostels || []).map(h => h.hostel_id);
+      if (hostelIds.length) {
+        const { data: rooms } = await supabase
+          .from('rooms')
+          .select('room_id')
+          .in('hostel_id', hostelIds);
+        const roomIds = (rooms || []).map(r => r.room_id);
+        if (roomIds.length) {
+          const { data: reqs } = await supabase
+            .from('maintenance_requests')
+            .select('request_id')
+            .in('room_id', roomIds);
+          const requestIds = (reqs || []).map(r => r.request_id);
+          if (requestIds.length) {
+            const { data: expensesAll } = await supabase
+              .from('maintenance_expenses')
+              .select('amount, created_at')
+              .in('request_id', requestIds);
+            const first = new Date(); first.setDate(1);
+            maintTotal = (expensesAll || []).reduce((s, e) => s + Number(e.amount || 0), 0);
+            maintMonth = (expensesAll || []).filter(e => new Date(e.created_at) >= first).reduce((s, e) => s + Number(e.amount || 0), 0);
+          }
+        }
+      }
+    } catch (_) {}
+
+    res.json({ success: true, summary: { ...totals, monthlyPayments, feesCount: fees?.length || 0, maintenance_expenses: maintTotal, maintenance_expenses_month: maintMonth } });
   } catch (error) {
     console.error('❌ Warden finance summary error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to load finance summary' });
@@ -1003,5 +1105,82 @@ router.get('/finance/fees', authenticateToken, requireWardenRole, async (req, re
   } catch (error) {
     console.error('❌ Warden list fees error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to load fees' });
+  }
+});
+
+// GET /api/warden/finance/expenses?period=month|all - list maintenance expenses scoped to this warden's hostels
+router.get('/finance/expenses', authenticateToken, requireWardenRole, async (req, res) => {
+  try {
+    const wardenId = req.user.userId;
+    const period = (req.query.period || '').toLowerCase();
+
+    // 1) Hostels managed by this warden
+    const { data: hostels, error: hErr } = await supabase
+      .from('hostels')
+      .select('hostel_id, hostel_name')
+      .eq('warden_id', wardenId);
+    if (hErr) throw hErr;
+    const hostelIds = (hostels || []).map(h => h.hostel_id);
+    if (!hostelIds.length) return res.json({ success: true, expenses: [] });
+
+    // 2) Rooms in those hostels
+    const { data: rooms, error: rErr } = await supabase
+      .from('rooms')
+      .select('room_id, room_no, hostel_id')
+      .in('hostel_id', hostelIds);
+    if (rErr) throw rErr;
+    const roomIds = (rooms || []).map(r => r.room_id);
+    if (!roomIds.length) return res.json({ success: true, expenses: [] });
+
+    // 3) Requests in those rooms
+    const { data: reqs, error: qErr } = await supabase
+      .from('maintenance_requests')
+      .select('request_id, category, status, room_id, created_at')
+      .in('room_id', roomIds);
+    if (qErr) throw qErr;
+    const requestIds = (reqs || []).map(r => r.request_id);
+    if (!requestIds.length) return res.json({ success: true, expenses: [] });
+
+    // 4) Expenses for those requests (optionally limited to current month)
+    let qb = supabase
+      .from('maintenance_expenses')
+      .select('expense_id, request_id, amount, description, vendor, paid_at, created_at')
+      .in('request_id', requestIds)
+      .order('created_at', { ascending: false });
+    if (period === 'month' || period === 'current' || period === 'this-month') {
+      const first = new Date(); first.setDate(1);
+      qb = qb.gte('created_at', first.toISOString());
+    }
+    const { data: expenses, error: eErr } = await qb;
+    if (eErr) throw eErr;
+
+    // Maps for enrichment
+    const roomMap = new Map((rooms || []).map(r => [r.room_id, r]));
+    const hostelMap = new Map((hostels || []).map(h => [h.hostel_id, h]));
+    const reqMap = new Map((reqs || []).map(r => [r.request_id, r]));
+
+    const enriched = (expenses || []).map(x => {
+      const req = reqMap.get(x.request_id) || {};
+      const room = roomMap.get(req.room_id) || {};
+      const hostel = hostelMap.get(room.hostel_id) || {};
+      return {
+        expenseId: x.expense_id,
+        requestId: x.request_id,
+        amount: Number(x.amount || 0),
+        description: x.description || null,
+        vendor: x.vendor || null,
+        paidAt: x.paid_at || null,
+        createdAt: x.created_at,
+        category: req.category || null,
+        status: req.status || null,
+        roomNo: room.room_no || null,
+        hostelName: hostel.hostel_name || null
+      };
+    });
+
+    res.json({ success: true, expenses: enriched });
+  } catch (error) {
+    console.error('❌ Warden list expenses error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to load expenses' });
   }
 });

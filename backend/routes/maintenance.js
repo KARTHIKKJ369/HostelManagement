@@ -88,7 +88,33 @@ router.post('/submit', authenticateToken, async (req, res) => {
     }
     
   // Insert maintenance request via model
-  const newRequest = await MaintenanceRequestModel.createRequest(student.student_id, roomId, type, description, priority || 'Medium');
+  // Normalize incoming fields
+  // DB constraint allows only: Electricity, Plumbing, Cleaning, Other
+  const normalizeCategory = (t) => {
+    const s = (t || '').toLowerCase();
+    if (s.includes('electric')) return 'Electricity';
+    if (s.includes('plumb')) return 'Plumbing';
+    if (s.includes('clean')) return 'Cleaning';
+    // Map all other types (e.g., furniture, AC/Heating) to 'Other' to satisfy constraint
+    return 'Other';
+  };
+  const normalizePriority = (p) => {
+    const s = (p || '').toLowerCase();
+    if (s.startsWith('u') || s.startsWith('hig')) return 'High';
+    if (s.startsWith('med')) return 'Medium';
+    return 'Low';
+  };
+
+  const payload = {
+    student_id: student.student_id,
+    room_id: roomId,
+    category: normalizeCategory(type),
+    description: description || '',
+    priority: normalizePriority(priority || 'Medium'),
+    status: 'Pending'
+  };
+
+  const newRequest = await MaintenanceRequestModel.createRequest(payload);
     
     console.log('✅ Maintenance request submitted:', {
       requestId: newRequest.request_id,
