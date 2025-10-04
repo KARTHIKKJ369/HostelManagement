@@ -1213,24 +1213,62 @@ router.get('/system-health', authenticateToken, requireSuperAdminRole, async (re
 // GET /api/superadmin/security/summary - basic security stats snapshot
 router.get('/security/summary', authenticateToken, requireSuperAdminRole, async (req, res) => {
   try {
-    // For now, derive simple counts from audit_logs and users
+    // Active logins: unique users with LOGIN_SUCCESS in last 1 hour (auth activity)
+    let activeLogins = 0;
+    try {
+      const oneHourAgo = new Date(Date.now() - 60*60*1000).toISOString();
+      const { data: loginLogs, error: lErr } = await supabase
+        .from('audit_logs')
+        .select('actor_user_id')
+        .eq('action', 'LOGIN_SUCCESS')
+        .gte('ts', oneHourAgo);
+      if (lErr) throw lErr;
+      const set = new Set((loginLogs || []).map(l => l.actor_user_id).filter(Boolean));
+      activeLogins = set.size;
+    } catch (_) {
+      // fallback: users with last_login in last 24h
+      try {
+        const since = new Date(Date.now() - 24*60*60*1000).toISOString();
+        const { data: recentUsers, error: uErr } = await supabase
+          .from('users')
+          .select('user_id')
+          .gte('last_login', since);
+        if (uErr) throw uErr;
+        activeLogins = (recentUsers || []).length;
+      } catch (__) {
+        const users = await UserModel.findAll();
+        activeLogins = (users || []).length;
+      }
+    }
+
+    // Failed attempts: WARN audit logs for LOGIN_FAILED in last 7 days
     let failedAttempts = 0;
     try {
-      const { data, error } = await supabase.from('audit_logs').select('id').eq('level', 'WARN');
-      if (error) throw error;
-      failedAttempts = (data || []).length;
-    } catch (e) {
-      // table may not exist; keep defaults
-    }
-    const users = await UserModel.findAll();
-    const suspiciousActivity = 0; // placeholder; can hook into intrusion detection
-    const lastSecurityScan = 'N/A'; // could be from settings or audits
-    res.json({ success: true, summary: {
-      activeLogins: users.length, // approximation for demo
-      failedAttempts,
-      suspiciousActivity,
-      lastSecurityScan
-    }});
+      const weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+      const { data: failedLogs, error: fErr } = await supabase
+        .from('audit_logs')
+        .select('id')
+        .eq('action', 'LOGIN_FAILED')
+        .gte('ts', weekAgo);
+      if (fErr) throw fErr;
+      failedAttempts = (failedLogs || []).length;
+    } catch (_) {}
+
+    // Suspicious: WARN or ERROR audit logs in last 7 days (excluding LOGIN_FAILED)
+    let suspiciousActivity = 0;
+    try {
+      const weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+      const { data: suspLogs, error: sErr } = await supabase
+        .from('audit_logs')
+        .select('id')
+        .in('level', ['WARN', 'ERROR'])
+        .neq('action', 'LOGIN_FAILED')
+        .gte('ts', weekAgo);
+      if (sErr) throw sErr;
+      suspiciousActivity = (suspLogs || []).length;
+    } catch (_) {}
+
+    res.json({ success: true, summary: { activeLogins, failedAttempts, suspiciousActivity } });
   } catch (error) {
     console.error('❌ Security summary error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to load security summary' });

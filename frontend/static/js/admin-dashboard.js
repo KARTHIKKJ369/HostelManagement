@@ -251,7 +251,6 @@ function loadSecuritySummary() {
                             <small>Suspicious</small>
                         </div>
                     </div>
-                    <p style=\"margin-top: 1rem; font-size: 0.9rem; color: #6b7280;\">Last Security Scan: ${s.lastSecurityScan}</p>
                 </div>`;
         } catch (e) {
             console.error('❌ Security summary error:', e);
@@ -375,7 +374,11 @@ function openNotificationsModal() {
     if (listEl && body) {
       body.innerHTML = listEl.innerHTML || '<div style="color:#6b7280;">No notifications to display</div>';
     }
-    if (modal) modal.style.display = 'block';
+        if (modal) modal.style.display = 'block';
+        // mark as seen: clear badge and persist timestamp
+        const badge = document.getElementById('notifBadge');
+        if (badge) { badge.textContent = ''; badge.style.display = 'none'; }
+        try { localStorage.setItem('adminNotifSeenAt', String(Date.now())); } catch (_) {}
   } catch (e) {
     console.error('openNotificationsModal error', e);
   }
@@ -411,12 +414,19 @@ loadSystemNotifications = async function() {
     notificationHTML += '</div>';
     if (el) el.innerHTML = notificationHTML;
 
-    // Update badge count: show only if > 0
-    if (badge) {
-      const count = notifications.length;
-      badge.textContent = String(count);
-      badge.style.display = count > 0 ? 'flex' : 'none';
-    }
+        // Update badge count for unseen notifications only
+        if (badge) {
+            let seenAt = 0;
+            try { seenAt = parseInt(localStorage.getItem('adminNotifSeenAt') || '0'); } catch(_) {}
+            const unseen = notifications.filter(n => {
+                if (!n.created_at) return true;
+                const ts = new Date(n.created_at).getTime();
+                return isFinite(ts) ? ts > seenAt : true;
+            });
+            const count = unseen.length;
+            badge.textContent = count > 0 ? String(count) : '';
+            badge.style.display = count > 0 ? 'flex' : 'none';
+        }
   } catch (e) {
     if (el) el.innerHTML = '<div style="color:#dc2626; text-align:center;">Failed to load notifications</div>';
     if (badge) {
@@ -1426,6 +1436,69 @@ async function vacateRoom(roomId, roomNo, hostelId, hostelName) {
 async function viewAnalytics() {
     try {
         const data = await API.call('/superadmin/analytics/overview', { method: 'GET' });
+        // helpers
+        const toEntries = (obj) => Object.entries(obj || {});
+        const sumVals = (obj) => Object.values(obj || {}).reduce((a,b) => a + (Number(b)||0), 0);
+        const pct = (n, d) => d > 0 ? Math.round((n / d) * 100) : 0;
+        const colorFor = (group, key) => {
+            const maps = {
+                rooms: {
+                    'Occupied': '#3b82f6',
+                    'Vacant': '#10b981',
+                    'Under Maintenance': '#f59e0b'
+                },
+                applications: {
+                    'pending': '#f59e0b',
+                    'approved': '#10b981',
+                    'rejected': '#ef4444',
+                    'allocated': '#3b82f6'
+                },
+                maintenance: {
+                    'Pending': '#f59e0b',
+                    'In Progress': '#3b82f6',
+                    'Completed': '#10b981'
+                }
+            };
+            const map = maps[group] || {};
+            return map[key] || '#64748b';
+        };
+
+        const renderStatusSection = (title, group, obj) => {
+            const total = sumVals(obj);
+            const items = toEntries(obj);
+            if (!items.length) return `
+                <div style="margin-top:1rem;">
+                    <h4>${title}</h4>
+                    <div style="color:#6b7280;">No data</div>
+                </div>`;
+            const rows = items.map(([k, v]) => {
+                const c = Number(v) || 0;
+                const p = pct(c, total);
+                const col = colorFor(group, k);
+                return `
+                <div style="display:flex; align-items:center; gap:10px; margin:8px 0;">
+                  <span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:${col}; flex-shrink:0;"></span>
+                  <div style="flex:1;">
+                    <div style="display:flex; justify-content:space-between; font-size:13px;">
+                      <span>${k}</span>
+                      <strong>${c}</strong>
+                    </div>
+                    <div style="height:6px; background:#eef2f7; border-radius:4px; overflow:hidden; margin-top:4px;">
+                      <div style="width:${p}%; height:100%; background:${col};"></div>
+                    </div>
+                  </div>
+                </div>`;
+            }).join('');
+            return `
+            <div style="margin-top:1rem;">
+              <h4>${title}</h4>
+              <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:8px; padding:10px;">
+                ${rows}
+                <div style="margin-top:6px; text-align:right; color:#6b7280; font-size:12px;">Total: ${total}</div>
+              </div>
+            </div>`;
+        };
+
         const html = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                 <div class="info-card light-blue"><h5>Occupancy Rate</h5><h3>${data.occupancyRate || 0}%</h3></div>
@@ -1433,14 +1506,10 @@ async function viewAnalytics() {
                 <div class="info-card orange"><h5>Applications</h5><h3>${data.applications?.total || 0}</h3></div>
                 <div class="info-card pink"><h5>Maintenance</h5><h3>${data.maintenance?.total || 0}</h3></div>
             </div>
-            <div style="margin-top:1rem;">
-                <h4>Rooms by Status</h4>
-                <pre style="background:#f8f9fa;padding:0.75rem;border-radius:6px;">${JSON.stringify(data.rooms?.byStatus || {}, null, 2)}</pre>
-                <h4>Applications by Status</h4>
-                <pre style="background:#f8f9fa;padding:0.75rem;border-radius:6px;">${JSON.stringify(data.applications?.byStatus || {}, null, 2)}</pre>
-                <h4>Maintenance by Status</h4>
-                <pre style="background:#f8f9fa;padding:0.75rem;border-radius:6px;">${JSON.stringify(data.maintenance?.byStatus || {}, null, 2)}</pre>
-            </div>`;
+            ${renderStatusSection('Rooms by Status', 'rooms', data.rooms?.byStatus)}
+            ${renderStatusSection('Applications by Status', 'applications', data.applications?.byStatus)}
+            ${renderStatusSection('Maintenance by Status', 'maintenance', data.maintenance?.byStatus)}
+        `;
         showModal('System Analytics', html);
     } catch (err) {
         UIHelper.showAlert('Failed to load analytics', 'error');
@@ -1450,10 +1519,10 @@ async function viewAnalytics() {
 
 function generateReports() {
         const content = `
-            <div class="form-row" style="align-items:center; gap:0.5rem;">
-                <div class="form-group" style="margin:0;">
-                    <label>Choose dataset:</label>
-                    <select id="reportEntity" class="form-select" onchange="onReportEntityChange()">
+            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                <div class="form-group" style="margin:0; max-width: 420px;">
+                    <label class="form-label">Dataset</label>
+                    <select id="reportEntity" class="form-select" onchange="onReportEntityChange()" style="width:100%; min-width: 260px;">
                         <option value="users">Users</option>
                         <option value="hostels">Hostels</option>
                         <option value="rooms">Rooms</option>
@@ -1462,15 +1531,15 @@ function generateReports() {
                         <option value="maintenance">Maintenance</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin:0; display:flex; gap:0.5rem;">
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
                     <button class="btn btn-primary" onclick="loadReportPreview()">Load Preview</button>
                     <button class="btn btn-primary" onclick="downloadReport()">Download CSV</button>
                     <button class="btn btn-primary" onclick="downloadReportPDF()">Download PDF</button>
                 </div>
-            </div>
-            <div id="reportDesc" style="color:#6b7280; font-size: 0.95rem; margin: 8px 0 12px 0;"></div>
-            <div id="reportSummary"></div>
-            <div id="reportTable" style="margin-top: 10px;"></div>`;
+                <div id="reportDesc" style="color:#6b7280; font-size: 0.95rem; margin-top: 2px;"></div>
+                <div id="reportSummary"></div>
+                <div id="reportTable"></div>
+            </div>`;
         showModal('Generate Reports', content);
         onReportEntityChange();
 }
@@ -1528,39 +1597,65 @@ function parseCSV(text) {
 }
 
 function splitCSVLine(line) {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-                const c = line[i];
-                if (inQuotes) {
-                        if (c === '"' && line[i + 1] === '"') { current += '"'; i++; }
-                        else if (c === '"') { inQuotes = false; }
-                        else { current += c; }
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+            if (ch === '"') {
+                if (i + 1 < line.length && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
                 } else {
-                        if (c === '"') { inQuotes = true; }
-                        else if (c === ',') { result.push(current); current = ''; }
-                        else { current += c; }
+                    inQuotes = false;
                 }
+            } else {
+                current += ch;
+            }
+        } else {
+            if (ch === ',') {
+                result.push(current);
+                current = '';
+            } else if (ch === '"') {
+                inQuotes = true;
+            } else {
+                current += ch;
+            }
         }
-        result.push(current);
-        return result;
+    }
+    result.push(current);
+    return result;
 }
 
+// Build simple categorical breakdowns for a few fields
 function buildBreakdowns(headers, rows) {
-        const fields = ['status', 'role', 'hostel_type', 'priority'];
-        const present = fields.filter(f => headers.includes(f));
-        const breakdowns = {};
-        for (const f of present) {
-                const counts = {};
-                for (const r of rows) {
-                        const key = (r[f] || '-');
-                        counts[key] = (counts[key] || 0) + 1;
-                }
-                // Sort by count desc and take top 6
-                breakdowns[f] = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+    const breakdowns = {};
+    if (!headers || !headers.length || !rows || !rows.length) return breakdowns;
+    const lower = headers.map(h => h.toLowerCase());
+    const preferred = ['status','role','category','hostel','hostel_name','room_status','gender','method'];
+    const candidates = [];
+    // add preferred fields if present
+    for (const p of preferred) {
+        const idx = lower.indexOf(p);
+        if (idx !== -1) candidates.push(headers[idx]);
+    }
+    // fill up to 4 fields total
+    for (const h of headers) {
+        if (candidates.length >= 4) break;
+        if (!candidates.includes(h)) candidates.push(h);
+    }
+    for (const f of candidates.slice(0, 4)) {
+        const counts = {};
+        for (const r of rows) {
+            let key = r[f];
+            if (key === undefined || key === null || key === '') key = 'Unknown';
+            key = String(key);
+            counts[key] = (counts[key] || 0) + 1;
         }
-        return breakdowns;
+        breakdowns[f] = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+    }
+    return breakdowns;
 }
 
 function renderReportSummary(total, breakdowns) {
@@ -1911,34 +2006,36 @@ async function openFeeManager() {
 
 function showCreateFee() {
         const form = `
-            <form id="createFeeForm" onsubmit="submitCreateFee(event)" class="modal-form">
-                <div class="form-row">
-                    <div class="form-group" style="flex: 1 1 50%">
-                        <label class="form-label">Student (Reg No)</label>
-                        <div style="display:flex; gap:0.5rem; align-items:center;">
-                            <input type="text" id="studentSearch" class="form-input" placeholder="Search reg no or name" oninput="searchStudentsForFee()" style="flex:1; min-width: 220px;" />
-                            <select id="studentSelect" name="student_id" class="form-select" required style="flex:0 0 260px; min-width: 240px;">
+            <form id="createFeeForm" onsubmit="submitCreateFee(event)" class="modal-form" style="display:flex; flex-direction:column; gap:1rem;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; align-items:start;">
+                    <div>
+                        <label class="form-label">Student</label>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; align-items:center;">
+                            <input type="text" id="studentSearch" class="form-input" placeholder="Search reg no or name" oninput="searchStudentsForFee()" style="width:100%; min-width:0;" />
+                            <select id="studentSelect" name="student_id" class="form-select" required style="width:100%; min-width:0;">
                                 <option value="" disabled selected>Search to load students…</option>
                             </select>
                         </div>
                         <small id="studentHint" style="color:#6b7280;">Type to search students by reg no or name</small>
                     </div>
-                    <div class="form-group">
+                    <div>
                         <label class="form-label">Amount</label>
-                        <input type="number" step="0.01" name="amount" class="form-input" required />
+                        <input type="number" step="0.01" name="amount" class="form-input" required style="width:100%; padding:0.6rem 0.75rem;" inputmode="decimal" />
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
+
+                <div style="display:grid; grid-template-columns: 240px 1fr; gap:1rem;">
+                    <div>
                         <label class="form-label">Due Date</label>
-                        <input type="date" name="due_date" class="form-input" />
+                        <input type="date" name="due_date" class="form-input" style="width:100%;" />
                     </div>
-                    <div class="form-group">
+                    <div>
                         <label class="form-label">Description</label>
-                        <input type="text" name="description" class="form-input" />
+                        <input type="text" name="description" class="form-input" style="width:100%;" placeholder="Optional description" />
                     </div>
                 </div>
-                <div style="text-align:right; margin-top: 0.5rem;">
+
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 0.5rem;">
                     <button type="button" class="btn btn-primary" onclick="openFeeManager()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create</button>
                 </div>
@@ -1988,26 +2085,26 @@ async function searchStudentsForFee() {
 
 function showRecordPayment(fee_id, maxAmount) {
         const form = `
-            <form id="recordPaymentForm" onsubmit="submitRecordPayment(event, ${fee_id})" class="modal-form">
-                <div class="form-row">
-                    <div class="form-group">
+            <form id="recordPaymentForm" onsubmit="submitRecordPayment(event, ${fee_id})" class="modal-form" style="display:flex; flex-direction:column; gap:1rem;">
+                <div style="display:grid; grid-template-columns: 240px 1fr; gap:1rem; align-items:start;">
+                    <div>
                         <label class="form-label">Amount (max ₹${Number(maxAmount).toLocaleString()})</label>
-                        <input type="number" step="0.01" name="amount" class="form-input" required />
+                        <input type="number" step="0.01" name="amount" class="form-input" required style="width:100%; padding:0.6rem 0.75rem;" inputmode="decimal" />
                     </div>
-                    <div class="form-group">
+                    <div>
                         <label class="form-label">Method</label>
-                        <select name="method" class="form-select">
+                        <select name="method" class="form-select" required style="width:100%;">
                             <option value="UPI">UPI</option>
                             <option value="Card">Card</option>
                             <option value="Cash">Cash</option>
                         </select>
                     </div>
                 </div>
-                <div class="form-group">
+                <div>
                     <label class="form-label">Reference</label>
-                    <input type="text" name="reference" class="form-input" />
+                    <input type="text" name="reference" class="form-input" style="width:100%;" placeholder="Txn ID, UTR, Cheque no., etc." />
                 </div>
-                <div style="text-align:right; margin-top: 0.5rem;">
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top: 0.5rem;">
                     <button type="button" class="btn btn-primary" onclick="openFeeManager()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Record</button>
                 </div>
@@ -2257,7 +2354,6 @@ async function securityAudit() {
                         <div><strong>Active Logins:</strong> ${s.activeLogins ?? 0}</div>
                         <div><strong>Failed Attempts:</strong> ${s.failedAttempts ?? 0}</div>
                         <div><strong>Suspicious:</strong> ${s.suspiciousActivity ?? 0}</div>
-                        <div><strong>Last Scan:</strong> ${s.lastSecurityScan || 'N/A'}</div>
                     </div>
                 </div>
                 <div class=\"form-group\">

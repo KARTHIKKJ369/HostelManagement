@@ -100,6 +100,7 @@ const StudentDashboard = {
         this.loadMaintenanceRequests();
         this.loadNotifications();
         this.loadRecentActivity();
+    this.loadFees();
         this.setupEventListeners();
         
         // Check allotment status to show/hide allotment registration card
@@ -495,27 +496,239 @@ const StudentDashboard = {
                     'Authorization': `Bearer ${TokenManager.getToken()}`
                 }
             });
-            let activities = [];
-            if (response.ok) {
-                const result = await response.json();
-                activities = result.activities || [];
-            } else {
-                activities = ['Could not load recent activity.'];
-            }
+
             const activityDiv = document.getElementById('recentActivity');
-            if (activityDiv) {
-                const activityHTML = activities.map((activity, index) => `
-                    <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee;">
-                        <span style="color: #666; font-size: 0.9rem;">• ${activity}</span>
-                    </div>
-                `).join('');
-                activityDiv.innerHTML = activityHTML;
+            if (!activityDiv) return;
+
+            if (!response.ok) {
+                activityDiv.innerHTML = `
+                    <div class="error-message" style="text-align: center; padding: 12px; background: #fff5f5; border-radius: 8px; border: 1px solid #fed7d7; color:#c53030;">
+                        ${svgIcon('alert')} Could not load recent activity.
+                    </div>`;
+                return;
             }
+
+            const result = await response.json();
+            const items = (result && result.data && Array.isArray(result.data.items)) ? result.data.items : [];
+
+            if (!items.length) {
+                activityDiv.innerHTML = `<p style="color: #6c757d; font-style: italic; text-align:center;">${svgIcon('inbox')} No recent activity yet.</p>`;
+                return;
+            }
+
+            const typeIcon = (t) => {
+                switch ((t || '').toLowerCase()) {
+                    case 'allocation': return svgIcon('home');
+                    case 'maintenance': return svgIcon('wrench');
+                    case 'announcement': return svgIcon('bell');
+                    default: return svgIcon('info');
+                }
+            };
+            const formatDate = (d) => {
+                const dt = new Date(d);
+                return isNaN(dt) ? '' : dt.toLocaleDateString();
+            };
+
+            const activityHTML = items.map(item => `
+                <div style="display:flex; align-items:center; gap:8px; padding: 8px 0; border-bottom: 1px solid #eee;">
+                    <span>${typeIcon(item.type)}</span>
+                    <div style="flex:1;">
+                        <div style="color:#2c3e50; font-size: 0.95rem;">${item.detail || ''}</div>
+                        <div style="color:#6c757d; font-size: 0.8rem;">${formatDate(item.at)}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            activityDiv.innerHTML = activityHTML;
         } catch (error) {
             console.error('Error loading recent activity:', error);
+            const activityDiv = document.getElementById('recentActivity');
+            if (activityDiv) {
+                activityDiv.innerHTML = `
+                    <div class="error-message" style="text-align: center; padding: 12px; background: #fff5f5; border-radius: 8px; border: 1px solid #fed7d7; color:#c53030;">
+                        ${svgIcon('alert')} Unable to load recent activity from server.
+                    </div>`;
+            }
         }
     }
 };
+
+// Load Fees section
+StudentDashboard.loadFees = async function() {
+    const el = document.getElementById('feesSection');
+    if (!el) return;
+    try {
+        el.innerHTML = '<div class="loading-message"><p>Loading fees...</p></div>';
+        const resp = await fetch(apiUrl('/api/student/my-fees'), {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${TokenManager.getToken()}` }
+        });
+        if (!resp.ok) {
+            const msg = await resp.text().catch(() => '');
+            throw new Error(msg || 'Failed to load fees');
+        }
+        const result = await resp.json();
+        const fees = (result && result.data && Array.isArray(result.data.fees)) ? result.data.fees : [];
+        const totals = (result && result.data && result.data.totals) ? result.data.totals : { total_billed: 0, total_paid: 0, pending: 0, overdue: 0 };
+
+        const currency = (n) => `₹${Number(n || 0).toLocaleString()}`;
+        const safeDate = (d) => { const dt = new Date(d); return isNaN(dt) ? '-' : dt.toLocaleDateString(); };
+
+        const header = `
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem;">
+                <div style="text-align:center;"><div style="color:#2563eb; font-weight:600;">${currency(totals.total_billed)}</div><small>Total Billed</small></div>
+                <div style="text-align:center;"><div style="color:#10b981; font-weight:600;">${currency(totals.total_paid)}</div><small>Total Paid</small></div>
+                <div style="text-align:center;"><div style="color:#f59e0b; font-weight:600;">${currency(totals.pending)}</div><small>Pending</small></div>
+                <div style="text-align:center;"><div style="color:#dc2626; font-weight:600;">${currency(totals.overdue)}</div><small>Overdue</small></div>
+            </div>
+        `;
+
+        if (!fees.length) {
+            el.innerHTML = header + `<div style="color:#6b7280; text-align:center; padding: 0.5rem;">${svgIcon('inbox')} No fees assigned yet.</div>`;
+            return;
+        }
+
+        const rows = fees.map(f => {
+            const statusColor = f.status === 'Paid' ? '#10b981' : f.isOverdue ? '#dc2626' : (f.status === 'Partially Paid' ? '#f59e0b' : '#2563eb');
+            const due = safeDate(f.due_date);
+                const isReceiptable = f.status === 'Paid' || f.status === 'Partially Paid';
+                const statusNode = isReceiptable
+                    ? `<button style="border:none;background:${statusColor}20;color:${statusColor}; padding:2px 8px; border-radius:999px; font-size:12px; cursor:pointer;" title="Receipt options" onclick="showReceiptMenu(event, ${f.fee_id})">${f.status}${f.isOverdue && f.balance>0 ? ' • Overdue' : ''}</button>`
+                    : `<span style="background:${statusColor}20; color:${statusColor}; padding:2px 8px; border-radius:999px; font-size:12px;">${f.status}${f.isOverdue && f.balance>0 ? ' • Overdue' : ''}</span>`;
+                // receiptBtn removed as per request; use popover actions only
+            const paymentsHtml = Array.isArray(f.payments) && f.payments.length ? `
+                <details style="font-size:12px;">
+                    <summary style="cursor:pointer; color:#2563eb;">View payments (${f.payments.length})</summary>
+                    <div style="margin-top:4px;">
+                        ${f.payments.map(p => `<div style=\"display:flex; justify-content:space-between; color:#374151;\"> <span>${safeDate(p.paid_at)} • ${p.method || 'UPI'}${p.reference ? ` • Ref: ${p.reference}` : ''}</span> <span>${currency(p.amount)}</span> </div>`).join('')}
+                    </div>
+                </details>
+            ` : '<span style="color:#6b7280; font-size:12px;">No payments yet</span>';
+
+            return `
+                <div style="padding:0.75rem; background:#f8fafc; border-radius:8px; margin-bottom:0.5rem; border-left:4px solid ${statusColor};">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                        <div>
+                            <div style="font-weight:600; color:#1f2937; display:flex; align-items:center; gap:6px;">${svgIcon('credit-card')}${f.description || 'Hostel Fee'}</div>
+                            <div style="color:#6b7280; font-size:12px;">Created: ${safeDate(f.created_at)}${due && due !== '-' ? ` • Due: ${due}` : ''}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-weight:700; color:#111827;">${currency(f.amount)}</div>
+                            <div style="color:#6b7280; font-size:12px;">Paid: ${currency(f.paid_amount)} • Bal: ${currency(f.balance)}</div>
+                        </div>
+                    </div>
+                         <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap: wrap; position:relative;">
+                             <div style="display:flex; align-items:center; gap:8px; position:relative;">
+                                 ${statusNode}
+                                 <div class="receipt-menu" style="display:none; position:absolute; top:24px; left:0; z-index:10; background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); min-width:160px;">
+                                    <button style="display:block; width:100%; text-align:left; background:none; border:none; padding:8px 10px; font-size:13px; cursor:pointer;" onclick="handleReceiptAction('print', ${f.fee_id})">${svgIcon('file-text')} Print Receipt</button>
+                                 </div>
+                             </div>
+                        <div style="margin-left:auto;">
+                            ${paymentsHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        el.innerHTML = header + rows;
+    } catch (e) {
+        console.error('loadFees error', e);
+        el.innerHTML = `
+            <div class="error-message" style="text-align:center; padding: 12px; background:#fff5f5; border-radius:8px; border:1px solid #fed7d7; color:#c53030;">
+                ${svgIcon('alert')} Unable to load fees.
+                <div style="margin-top:8px;"><button class="btn btn-outline" onclick="StudentDashboard.loadFees()">${svgIcon('refresh')} Try Again</button></div>
+            </div>`;
+    }
+}
+
+// Removed downloadFeeReceipt: no HTML download, we only support in-browser print
+
+// Show a small popover menu anchored to the status button
+function showReceiptMenu(event, feeId) {
+    try {
+        // Close any open menus first
+        hideAllReceiptMenus();
+        const container = event.currentTarget.parentElement; // the wrapper with position:relative
+        const menu = container.querySelector('.receipt-menu');
+        if (menu) {
+            menu.style.display = 'block';
+            // Save context for action handler
+            menu.setAttribute('data-fee-id', String(feeId));
+            // Setup one-time outside click handler
+            setTimeout(() => {
+                document.addEventListener('click', outsideReceiptMenuHandler, { capture: true, once: true });
+                document.addEventListener('keydown', receiptMenuEscHandler, { once: true });
+            }, 0);
+        }
+        event.stopPropagation();
+        event.preventDefault();
+    } catch (e) {
+        console.warn('showReceiptMenu error', e);
+    }
+}
+
+function hideAllReceiptMenus() {
+    document.querySelectorAll('.receipt-menu').forEach(el => { el.style.display = 'none'; });
+}
+
+function outsideReceiptMenuHandler(ev) {
+    // If the click is not on a receipt menu or its trigger, close menus
+    const target = ev.target;
+    if (!(target && (target.closest && (target.closest('.receipt-menu') || target.closest('[onclick*="showReceiptMenu"]'))))) {
+        hideAllReceiptMenus();
+    }
+}
+
+function receiptMenuEscHandler(ev) {
+    if (ev.key === 'Escape') hideAllReceiptMenus();
+}
+
+// Handle receipt actions: download or print
+async function handleReceiptAction(action, feeId) {
+    try {
+        hideAllReceiptMenus();
+        if (action === 'print') {
+            // Fetch HTML then open in a new print window
+            // Build a minimal printable receipt using data already on the page where possible by reusing API
+            const feesResp = await fetch(apiUrl('/api/student/my-fees'), { method: 'GET', headers: { 'Authorization': `Bearer ${TokenManager.getToken()}` } });
+            if (!feesResp.ok) throw new Error('Failed to load fee');
+            const data = await feesResp.json();
+            const fee = (data && data.data && Array.isArray(data.data.fees)) ? data.data.fees.find(x => x.fee_id === feeId) : null;
+            if (!fee) throw new Error('Fee not found');
+            const currency = (n) => `₹${Number(n || 0).toLocaleString()}`;
+            const safeDate = (d) => { const dt = new Date(d); return isNaN(dt) ? '-' : dt.toLocaleDateString(); };
+            const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt #${fee.fee_id}</title>
+                <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:24px;} .row{display:flex;justify-content:space-between;gap:16px}
+                h1{font-size:20px;margin:0 0 8px} .muted{color:#666} table{width:100%;border-collapse:collapse;margin-top:8px}
+                th,td{padding:8px;border-bottom:1px solid #eee;text-align:left} .right{text-align:right} .total{font-weight:700}
+                </style></head><body>
+                <h1>Hostel Fee Receipt</h1>
+                <div class="muted">Receipt ID: #${fee.fee_id}</div>
+                <div class="muted">Issued: ${safeDate(new Date())}</div>
+                <div style="margin-top:8px;"><strong>Description:</strong> ${fee.description || 'Hostel Fee'}</div>
+                <div class="muted">Created: ${safeDate(fee.created_at)}${fee.due_date ? ` • Due: ${safeDate(fee.due_date)}` : ''}</div>
+                <table><tr><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th></tr>
+                <tr><td>${currency(fee.amount)}</td><td>${currency(fee.paid_amount)}</td><td>${currency(fee.balance)}</td><td>${fee.status}</td></tr></table>
+                <div style="margin-top:12px;"><strong>Payments</strong>
+                ${Array.isArray(fee.payments) && fee.payments.length ? `<table><tr><th>Date</th><th>Method</th><th>Reference</th><th class="right">Amount</th></tr>
+                ${fee.payments.map(p => `<tr><td>${safeDate(p.paid_at)}</td><td>${p.method || '-'}</td><td>${p.reference || '-'}</td><td class="right">${currency(p.amount)}</td></tr>`).join('')}</table>` : '<div class="muted">No payments recorded yet</div>'}
+                </div>
+                <div style="margin-top:16px;text-align:right;">Subtotal: ${currency(fee.amount)}<br/>Paid: ${currency(fee.paid_amount)}<br/><span class="total">Balance: ${currency(fee.balance)}</span></div>
+                </body></html>`;
+            const w = window.open('', '_blank');
+            if (!w) throw new Error('Popup blocked');
+            w.document.open();
+            w.document.write(html);
+            w.document.close();
+            w.onload = () => { try { w.focus(); w.print(); } catch (e) {} };
+        }
+    } catch (e) {
+        console.error('handleReceiptAction error', e);
+        showGeneralModal(svgIcon('alert') + 'Receipt Error', `<div style="color:#c53030;">${e.message || 'Unable to perform action'}</div>`);
+    }
+}
 
 // Dashboard Action Functions
 function viewRoomDetails() {
@@ -597,10 +810,11 @@ function closeRoomDetailsModal() {
 
 // General purpose modal functions
 function showGeneralModal(title, content, actions = []) {
-    // Allow HTML in title so inline SVG icons render
+    // Allow HTML in title so inline SVG icons render and normalize emojis to SVGs
     const titleEl = document.getElementById('generalModalTitle');
-    if (titleEl) titleEl.innerHTML = title;
-    document.getElementById('generalModalContent').innerHTML = content;
+    if (titleEl) titleEl.innerHTML = replaceEmojisWithSvg(title);
+    const contentEl = document.getElementById('generalModalContent');
+    if (contentEl) contentEl.innerHTML = replaceEmojisWithSvg(content);
     
     // Clear and add action buttons
     const actionsDiv = document.getElementById('generalModalActions');
@@ -663,6 +877,86 @@ function svgIcon(name, size = 18) {
     return `<svg ${attrs}>${paths[name]}</svg>`;
 }
 
+// Global helper: replace common emojis with inline SVGs for consistent styling
+function replaceEmojisWithSvg(html) {
+    if (!html || typeof html !== 'string') return html;
+    const mapping = new Map([
+        // Time / sections
+        ['⏰', svgIcon('clock')],
+        ['⏱', svgIcon('clock')],
+        ['🕰️', svgIcon('clock')],
+        // Specific clock faces (full hours)
+        ['🕐', svgIcon('clock')], ['🕐️', svgIcon('clock')],
+        ['🕑', svgIcon('clock')], ['🕑️', svgIcon('clock')],
+        ['🕒', svgIcon('clock')], ['🕒️', svgIcon('clock')],
+        ['🕓', svgIcon('clock')], ['🕓️', svgIcon('clock')],
+        ['🕔', svgIcon('clock')], ['🕔️', svgIcon('clock')],
+        ['🕕', svgIcon('clock')], ['🕕️', svgIcon('clock')],
+        ['🕖', svgIcon('clock')], ['🕖️', svgIcon('clock')],
+        ['🕗', svgIcon('clock')], ['🕗️', svgIcon('clock')],
+        ['🕘', svgIcon('clock')], ['🕘️', svgIcon('clock')],
+        ['🕙', svgIcon('clock')], ['🕙️', svgIcon('clock')],
+        ['🕚', svgIcon('clock')], ['🕚️', svgIcon('clock')],
+        ['🕛', svgIcon('clock')], ['🕛️', svgIcon('clock')],
+        // Half-hour clocks
+        ['🕜', svgIcon('clock')], ['🕝', svgIcon('clock')],
+        ['🕞', svgIcon('clock')], ['🕟', svgIcon('clock')],
+        ['🕠', svgIcon('clock')], ['🕡', svgIcon('clock')],
+        ['🕢', svgIcon('clock')], ['🕣', svgIcon('clock')],
+        ['🕤', svgIcon('clock')], ['🕥', svgIcon('clock')],
+        ['🕦', svgIcon('clock')], ['🕧', svgIcon('clock')],
+        // Section bullets commonly used in content
+        ['🟠', svgIcon('book')],
+        ['🔸', svgIcon('book')],
+        ['🔶', svgIcon('book')],
+        // People / contact
+        ['👥', svgIcon('users')],
+        // Prohibited / restrictions
+        ['🚫', svgIcon('ban')],
+        ['🚷', svgIcon('ban')],
+        ['🚭', svgIcon('ban')],
+        ['🍺', svgIcon('ban')],
+        ['🍷', svgIcon('ban')],
+        ['🍹', svgIcon('ban')],
+    // Muted / quiet
+    ['🔇', svgIcon('volume-2')],
+        // Cleanliness
+        ['🧹', svgIcon('feather')],
+        ['🧽', svgIcon('feather')],
+        ['🧼', svgIcon('feather')],
+        // Tools / maintenance
+        ['🔧', svgIcon('wrench')],
+        ['🛠️', svgIcon('wrench')],
+        // Payments / penalties / docs
+        ['💳', svgIcon('credit-card')],
+        ['📝', svgIcon('file-text')],
+        ['✏️', svgIcon('file-text')],
+        // Generic UI symbols
+        ['📖', svgIcon('book')],
+        ['📘', svgIcon('book')],
+        ['🔔', svgIcon('bell')],
+        ['✅', svgIcon('check-circle')],
+        ['⚠️', svgIcon('alert')],
+        ['ℹ️', svgIcon('info')],
+        ['❌', svgIcon('x-circle')],
+        ['🏠', svgIcon('home')],
+        ['📦', svgIcon('box')],
+        ['📍', svgIcon('map-pin')],
+        ['✉️', svgIcon('mail')],
+        ['⭐', svgIcon('star')],
+        ['☕', svgIcon('coffee')],
+        ['❄️', svgIcon('snow')],
+        ['🔒', svgIcon('lock')],
+        ['🔍', svgIcon('search')]
+    ]);
+    let out = html;
+    for (const [emoji, svg] of mapping) {
+        // Replace all occurrences, including those with surrounding spaces
+        out = out.split(emoji).join(svg);
+    }
+    return out;
+}
+
 function newMaintenanceRequest() {
     const requestTypes = [
         'Electrical Issue', 'Plumbing Issue', 'Furniture Repair', 
@@ -720,17 +1014,92 @@ function newMaintenanceRequest() {
     
     // Add form submission handler
     setTimeout(() => {
+        // Prefill room number if we can (keep it editable)
+        const roomInput = document.getElementById('roomNumber');
+        if (roomInput) {
+            const fromDashboard = (document.getElementById('detailRoomNumber')?.textContent || '').trim();
+            const isUsable = fromDashboard && !['Not Assigned', 'Loading...', '---'].includes(fromDashboard);
+            if (isUsable) {
+                roomInput.value = fromDashboard;
+            } else {
+                // Fallback to API to retrieve current room allocation
+                fetch(apiUrl('/api/allotment/my-room'), {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${TokenManager.getToken()}` }
+                })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    const rn = data && data.success && data.data && data.data.hasAllocation ? data.data.allocation?.roomNumber : '';
+                    if (rn) roomInput.value = rn;
+                })
+                .catch(() => {/* ignore prefill errors */});
+            }
+        }
+
         const maintenanceForm = document.getElementById('maintenanceForm');
         if (maintenanceForm) {
-            maintenanceForm.addEventListener('submit', (e) => {
+            maintenanceForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                dashClearAlerts();
+
                 const type = document.getElementById('requestType').value;
-                const roomNumber = document.getElementById('roomNumber').value;
+                const roomNumber = document.getElementById('roomNumber').value; // informational only
                 const description = document.getElementById('requestDescription').value;
                 const priority = document.getElementById('requestPriority').value;
-                
-                if (type && roomNumber && description && priority) {
-                    const requestId = `REQ${Date.now()}`;
+
+                // Basic validation (room number optional for backend but kept required in UI)
+                const requiredMissing = !type || !roomNumber || !description || !priority;
+                if (requiredMissing) {
+                    const existingError = document.querySelector('.error-message');
+                    if (existingError) existingError.remove();
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.style.cssText = 'background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #dc3545;';
+                    errorDiv.innerHTML = '<strong>Error:</strong> Please fill in all required fields.';
+                    maintenanceForm.insertBefore(errorDiv, maintenanceForm.firstChild);
+                    return;
+                }
+
+                // Submit button loading state
+                const submitBtn = maintenanceForm.querySelector('button[type="submit"]');
+                const originalText = submitBtn ? submitBtn.innerHTML : '';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner"></span>Submitting...';
+                }
+
+                try {
+                    // Call backend to create the request
+                    const response = await fetch(apiUrl('/api/maintenance/submit'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${TokenManager.getToken()}`
+                        },
+                        body: JSON.stringify({
+                            type,
+                            description,
+                            priority
+                            // roomNumber is captured in UI but backend derives room allocation; intentionally not sent
+                        })
+                    });
+
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok || !result.success) {
+                        const msg = result.message || 'Failed to submit maintenance request';
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'error-message';
+                        errorDiv.style.cssText = 'background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #dc3545;';
+                        errorDiv.innerHTML = `${svgIcon('alert')} <strong>Error:</strong> ${msg}`;
+                        maintenanceForm.insertBefore(errorDiv, maintenanceForm.firstChild);
+                        return;
+                    }
+
+                    // Success UI with server-provided request ID
+                    const requestId = result?.data?.requestId || `REQ${Date.now()}`;
+                    const prettyPrio = priority.charAt(0).toUpperCase() + priority.slice(1);
+                    const eta = priority === 'urgent' ? '1-2 hours' : (priority === 'high' ? '4-8 hours' : '24-48 hours');
                     const successHtml = `
                         <div class="success-container">
                             <div class="success-icon">${svgIcon('check-circle', 28)}</div>
@@ -739,27 +1108,37 @@ function newMaintenanceRequest() {
                                 <p><strong>Request ID:</strong> #${requestId}</p>
                                 <p><strong>Type:</strong> ${type}</p>
                                 <p><strong>Room:</strong> ${roomNumber}</p>
-                                <p><strong>Priority:</strong> ${priority.charAt(0).toUpperCase() + priority.slice(1)}</p>
+                                <p><strong>Priority:</strong> ${prettyPrio}</p>
                                 <p><strong>Status:</strong> Pending Review</p>
                             </div>
                             <p style="color: #6c757d; margin-bottom: 1rem;">
-                                You will receive updates on your request via email and dashboard notifications. 
-                                Expected response time based on priority: ${priority === 'urgent' ? '1-2 hours' : priority === 'high' ? '4-8 hours' : '24-48 hours'}.
+                                You will receive updates on your request via email and dashboard notifications.
+                                Expected response time based on priority: ${eta}.
                             </p>
                             <button onclick="closeGeneralModal()" class="btn btn-success">Close</button>
                         </div>
                     `;
                     showGeneralModal(svgIcon('check-circle') + 'Request Submitted', successHtml);
-                } else {
-                    // Show validation error within modal
-                    const existingError = document.querySelector('.error-message');
-                    if (existingError) existingError.remove();
-                    
+
+                    // Refresh the list to include the newly created request
+                    try {
+                        await StudentDashboard.loadMaintenanceRequests();
+                    } catch (e) {
+                        // Non-fatal if refresh fails
+                        console.warn('Could not refresh maintenance list:', e);
+                    }
+                } catch (err) {
+                    console.error('Network error submitting maintenance request:', err);
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'error-message';
                     errorDiv.style.cssText = 'background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #dc3545;';
-                    errorDiv.innerHTML = '<strong>Error:</strong> Please fill in all required fields.';
+                    errorDiv.innerHTML = `${svgIcon('alert')} <strong>Error:</strong> Network error. Please try again.`;
                     maintenanceForm.insertBefore(errorDiv, maintenanceForm.firstChild);
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText || `${svgIcon('wrench')} Submit Request`;
+                    }
                 }
             });
         }
@@ -1468,12 +1847,13 @@ function viewHostelRules() {
     fetch(apiUrl('/api/rules'))
         .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load rules')))
         .then(json => {
-            const html = json?.data?.html || fallbackHtml;
+            const htmlRaw = json?.data?.html || fallbackHtml;
+            const html = replaceEmojisWithSvg(htmlRaw);
             showGeneralModal(svgIcon('book') + 'Hostel Rules & Regulations', html);
         })
         .catch(() => {
             // Fallback to built-in dummy rules
-            showGeneralModal(svgIcon('book') + 'Hostel Rules & Regulations', fallbackHtml);
+            showGeneralModal(svgIcon('book') + 'Hostel Rules & Regulations', replaceEmojisWithSvg(fallbackHtml));
         });
 }
 

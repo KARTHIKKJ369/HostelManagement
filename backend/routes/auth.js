@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const router = express.Router();
 const AuthService = require('../services/AuthService');
+const { supabase } = require('../config/supabase');
 const { isAuthenticated } = require('../middleware/auth');
 
 // Admin codes for secure registration
@@ -72,13 +73,39 @@ router.post('/login', loginValidation, handleValidationErrors, async (req, res) 
     const { username, password } = req.body;
     
     const result = await AuthService.login(username, password);
-    
+    // Write audit log for successful login
+    try {
+      if (supabase) {
+        await supabase.from('audit_logs').insert({
+          level: 'INFO',
+          actor_user_id: result.user.user_id,
+          action: 'LOGIN_SUCCESS',
+          details: { username, ip: req.ip }
+        });
+      }
+    } catch (e) {
+      // ignore audit log failures
+    }
+
     res.json({
       success: true,
       message: 'Login successful',
       data: result
     });
   } catch (error) {
+    // Write audit log for failed login
+    try {
+      if (supabase) {
+        await supabase.from('audit_logs').insert({
+          level: 'WARN',
+          actor_user_id: null,
+          action: 'LOGIN_FAILED',
+          details: { username: req.body?.username, ip: req.ip, reason: error.message }
+        });
+      }
+    } catch (e) {
+      // ignore audit log failures
+    }
     res.status(401).json({
       success: false,
       error: 'Login failed',
