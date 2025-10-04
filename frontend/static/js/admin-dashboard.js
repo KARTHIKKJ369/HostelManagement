@@ -2591,10 +2591,14 @@ async function deleteNotification(id) {
 }
 
 // Logout function
-document.getElementById('logoutBtn').addEventListener('click', function() {
-    if (confirm('Are you sure you want to logout?')) {
-        Auth.logout();
+document.getElementById('logoutBtn').addEventListener('click', function(ev) {
+    const ok = confirm('Are you sure you want to logout?');
+    if (!ok) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return false;
     }
+    Auth.logout();
 });
 
 // Clear Recent Admin Activity

@@ -553,11 +553,8 @@ const DashboardPage = {
             `;
         }
         
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', () => {
-                Auth.logout();
-            });
-        }
+        // Do not attach a global logout handler here.
+        // Each dashboard (student/warden/admin) provides its own handler with confirmation.
     }
 };
 
